@@ -1,37 +1,82 @@
 
-name: PanVK POCO X7 Pro MC7
+name: Build PanVK POCO X7 Pro MC7
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
 
     steps:
       - name: Baixar repositório
         uses: actions/checkout@v4
 
-      - name: Preparar ambiente
+      - name: Instalar ferramentas básicas
         run: |
           sudo apt-get update
-          sudo apt-get install -y unzip
+          sudo apt-get install -y \
+            unzip curl wget python3 python3-pip \
+            pkg-config glslang-tools ninja-build \
+            python3-mako python3-packaging python3-yaml
 
-      - name: Extrair código-fonte
+      - name: Instalar LLVM 21
         run: |
-          mkdir -p source
-          unzip -q mali-panvk-main.zip -d source
-          echo "Código-fonte extraído."
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get install -y \
+            llvm-21-dev \
+            libclang-21-dev \
+            clang-21 \
+            libclc-21-dev \
+            libllvmspirvlib-21-dev
 
-      - name: Verificar arquivos essenciais
+      - name: Instalar Meson
         run: |
-          find source -name meson.build
-          test -f source/mali-panvk-main/meson.build
-          echo "Estrutura Mesa encontrada."
+          python3 -m pip install --break-system-packages \
+            "meson>=1.4.0"
 
-      - name: Verificar script de compilação
+      - name: Baixar Android NDK r29
         run: |
-          echo "Verificando build.sh..."
+          cd "$RUNNER_TEMP"
+          curl -fL --retry 5 \
+            -o android-ndk-r29-linux.zip \
+            https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+
+          echo "87e2bb7e9be5d6a1c6cdf5ec40dd4e0c6d07c30b  android-ndk-r29-linux.zip" | sha1sum -c -
+
+          unzip -q android-ndk-r29-linux.zip
+          echo "ANDROID_NDK_HOME=$RUNNER_TEMP/android-ndk-r29" >> "$GITHUB_ENV"
+
+      - name: Verificar código-fonte
+        run: |
           test -f source/mali-panvk-main/build.sh
-          ls -lh source/mali-panvk-main/build.sh
-          echo "Script de compilação encontrado."
+          test -f source/mali-panvk-main/meson.build
+          echo "Código-fonte confirmado."
+
+      - name: Verificar ferramentas
+        run: |
+          meson --version
+          ninja --version
+          clang-21 --version
+          glslangValidator --version
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" --version
+
+      - name: Compilar PanVK ARM64
+        run: |
+          cd source/mali-panvk-main
+          chmod +x build.sh
+          ./build.sh "$ANDROID_NDK_HOME"
+
+      - name: Disponibilizar ZIP compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: PanVK-POCO-X7-Pro-MC7
+          path: source/mali-panvk-main/dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
