@@ -1,24 +1,29 @@
-
-name: Build PanVK POCO X7 Pro MC7
+name: PanVK POCO X7 Pro MC7
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  prepare:
     runs-on: ubuntu-latest
 
     steps:
       - name: Baixar repositório
         uses: actions/checkout@v4
 
-      - name: Mostrar configuração
+      - name: Preparar ambiente
         run: |
-          echo "Dispositivo: POCO X7 Pro"
-          echo "GPU: Mali-G720 MC7"
-          echo "Base prevista: Mesa 27.0.0-devel"
+          sudo apt-get update
+          sudo apt-get install -y unzip
 
-      - name: Verificar perfil
+      - name: Extrair código-fonte
         run: |
-          test -f profiles/poco-x7-pro-mc7.json
-          echo "Perfil encontrado."
+          mkdir -p source
+          unzip -q mali-panvk-main.zip -d source
+          echo "Código-fonte extraído."
+
+      - name: Verificar arquivos essenciais
+        run: |
+          find source -name meson.build
+          test -n "$(find source -name meson.build -print -quit)"
+          echo "Estrutura Mesa encontrada."
