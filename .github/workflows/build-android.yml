@@ -22,19 +22,38 @@ jobs:
           sudo apt-get install -y \
             unzip curl wget python3 python3-pip \
             pkg-config glslang-tools ninja-build \
-            python3-mako python3-packaging python3-yaml
+            python3-mako python3-packaging python3-yaml \
+            cmake git build-essential
 
-      - name: Instalar LLVM 21
+      - name: Instalar LLVM 21 e tradutor SPIR-V
         run: |
           wget -qO llvm.sh https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo ./llvm.sh 21
+
+          sudo apt-get update
           sudo apt-get install -y \
             llvm-21-dev \
             libclang-21-dev \
             clang-21 \
-            libclc-21-dev \
-            libllvmspirvlib-21-dev
+            libclc-21-dev
+
+          git clone --depth 1 --branch v21.1.13 \
+            https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git \
+            "$RUNNER_TEMP/spirv-llvm-translator"
+
+          cmake -S "$RUNNER_TEMP/spirv-llvm-translator" \
+            -B "$RUNNER_TEMP/spirv-llvm-translator/build" \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DLLVM_DIR=/usr/lib/llvm-21/lib/cmake/llvm \
+            -DLLVM_SPIRV_INCLUDE_TESTS=OFF
+
+          cmake --build "$RUNNER_TEMP/spirv-llvm-translator/build" \
+            --target install --parallel 2
+
+          sudo ldconfig
 
       - name: Instalar Meson
         run: |
@@ -48,9 +67,8 @@ jobs:
             -o android-ndk-r29-linux.zip \
             https://dl.google.com/android/repository/android-ndk-r29-linux.zip
 
-          echo "87e2bb7e9be5d6a1c6cdf5ec40dd4e0c6d07c30b  android-ndk-r29-linux.zip" | sha1sum -c -
-
           unzip -q android-ndk-r29-linux.zip
+
           echo "ANDROID_NDK_HOME=$RUNNER_TEMP/android-ndk-r29" >> "$GITHUB_ENV"
 
       - name: Verificar código-fonte
