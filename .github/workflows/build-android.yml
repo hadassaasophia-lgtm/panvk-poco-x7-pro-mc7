@@ -51,7 +51,10 @@ jobs:
             -DLLVM_SPIRV_INCLUDE_TESTS=OFF
 
           cmake --build "$RUNNER_TEMP/spirv-llvm-translator/build" \
-            --target install --parallel 2
+            --parallel 2
+
+          sudo cmake --build "$RUNNER_TEMP/spirv-llvm-translator/build" \
+            --target install
 
           sudo ldconfig
 
