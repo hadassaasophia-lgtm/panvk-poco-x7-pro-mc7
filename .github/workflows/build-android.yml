@@ -25,6 +25,15 @@ jobs:
             python3-mako python3-packaging python3-yaml \
             cmake git build-essential
 
+      - name: Extrair código-fonte
+        run: |
+          mkdir -p source
+          test -f mali-panvk-main.zip
+          unzip -q mali-panvk-main.zip -d source
+          find source -maxdepth 2 -name build.sh
+          test -f source/mali-panvk-main/build.sh
+          echo "Código-fonte extraído com sucesso."
+
       - name: Instalar LLVM 21 e tradutor SPIR-V
         run: |
           wget -qO llvm.sh https://apt.llvm.org/llvm.sh
@@ -71,7 +80,6 @@ jobs:
             https://dl.google.com/android/repository/android-ndk-r29-linux.zip
 
           unzip -q android-ndk-r29-linux.zip
-
           echo "ANDROID_NDK_HOME=$RUNNER_TEMP/android-ndk-r29" >> "$GITHUB_ENV"
 
       - name: Verificar código-fonte
