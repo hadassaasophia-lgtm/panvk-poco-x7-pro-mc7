@@ -1,0 +1,16 @@
+
+{
+  "device": "POCO X7 Pro",
+  "soc": "MediaTek Dimensity 8400-Ultra",
+  "gpu": "Mali-G720 MC7",
+  "gpu_id": "0xc8700010",
+  "architecture": "Mali v12 CSF",
+  "os": "Android 16",
+  "abi": "arm64-v8a",
+  "driver": "PanVK POCO X7 Pro MC7 Custom",
+  "mesa_base": "27.0.0-devel",
+  "target_games": [
+    "BOTW Recomp",
+    "GTA V Recomp"
+  ]
+}
