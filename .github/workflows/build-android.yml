@@ -1,3 +1,4 @@
+
 name: PanVK POCO X7 Pro MC7
 
 on:
@@ -25,5 +26,12 @@ jobs:
       - name: Verificar arquivos essenciais
         run: |
           find source -name meson.build
-          test -n "$(find source -name meson.build -print -quit)"
+          test -f source/mali-panvk-main/meson.build
           echo "Estrutura Mesa encontrada."
+
+      - name: Verificar script de compilação
+        run: |
+          echo "Verificando build.sh..."
+          test -f source/mali-panvk-main/build.sh
+          ls -lh source/mali-panvk-main/build.sh
+          echo "Script de compilação encontrado."
