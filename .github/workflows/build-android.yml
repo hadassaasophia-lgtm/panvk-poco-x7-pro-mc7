@@ -1,0 +1,24 @@
+
+name: Build PanVK POCO X7 Pro MC7
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Mostrar configuração
+        run: |
+          echo "Dispositivo: POCO X7 Pro"
+          echo "GPU: Mali-G720 MC7"
+          echo "Base prevista: Mesa 27.0.0-devel"
+
+      - name: Verificar perfil
+        run: |
+          test -f profiles/poco-x7-pro-mc7.json
+          echo "Perfil encontrado."
