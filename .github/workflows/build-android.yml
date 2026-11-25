@@ -30,7 +30,6 @@ jobs:
           mkdir -p source
           test -f mali-panvk-main.zip
           unzip -q mali-panvk-main.zip -d source
-          find source -maxdepth 2 -name build.sh
           test -f source/mali-panvk-main/build.sh
           echo "Código-fonte extraído com sucesso."
 
@@ -129,35 +128,29 @@ jobs:
           )
 
           if [ ${#libraries[@]} -eq 0 ]; then
-            echo "ERRO: libvulkan_panfrost.so não encontrada."
+            echo "ERRO: biblioteca Vulkan não encontrada."
             exit 1
           fi
 
           for library in "${libraries[@]}"; do
-            echo "=================================="
-            echo "BIBLIOTECA: $library"
-            echo "=================================="
-
+            echo "===== IDENTIFICAÇÃO ELF ====="
             file "$library"
-
-            readelf -h "$library" | tee "$RUNNER_TEMP/panvk-check/elf-header.txt"
+            readelf -h "$library"
 
             readelf -h "$library" | grep -q "ELF64"
             readelf -h "$library" | grep -q "AArch64"
 
             echo "ARQUITETURA CONFIRMADA: ELF64 AArch64"
 
-            echo "DEPENDÊNCIAS DINÂMICAS:"
+            echo "===== DEPENDÊNCIAS ====="
             readelf -d "$library" | grep NEEDED || true
 
-            echo "SHA-256:"
+            echo "===== SHA-256 ====="
             sha256sum "$library"
 
-            echo "TAMANHO:"
+            echo "===== TAMANHO ====="
             ls -lh "$library"
           done
-
-          echo "VERIFICAÇÃO DE ARQUITETURA CONCLUÍDA"
 
       - name: Analisar metadados e licenças
         run: |
@@ -165,11 +158,10 @@ jobs:
 
           PACKAGE_DIR="$RUNNER_TEMP/panvk-check/mali-panvk-27.0.0-devel"
 
-          echo "===== METADADOS DO DRIVER ====="
+          echo "===== METADADOS ====="
           test -f "$PACKAGE_DIR/meta.json"
           cat "$PACKAGE_DIR/meta.json"
 
-          echo "===== VALIDAR IDENTIFICAÇÃO ====="
           python3 - "$PACKAGE_DIR/meta.json" <<'PY'
           import json
           import sys
@@ -198,6 +190,72 @@ jobs:
           find "$PACKAGE_DIR" -maxdepth 2 -type f -printf '%P (%s bytes)\n'
 
           echo "ANÁLISE DO PACOTE CONCLUÍDA"
+
+      - name: Analisar funções Vulkan exportadas
+        run: |
+          set -e
+
+          LIBRARY="$RUNNER_TEMP/panvk-check/mali-panvk-27.0.0-devel/libvulkan_panfrost.so"
+
+          test -f "$LIBRARY"
+
+          echo "===== FUNÇÕES EXPORTADAS ====="
+
+          nm -D --defined-only "$LIBRARY" \
+            | tee "$RUNNER_TEMP/panvk-check/exported-symbols.txt"
+
+          echo "===== FUNÇÕES DE ENTRADA VULKAN ====="
+
+          grep -E \
+            'vkGetInstanceProcAddr|vk_icdGetInstanceProcAddr|vk_icdGetPhysicalDeviceProcAddr|vkCreateInstance|vkEnumerateInstanceExtensionProperties' \
+            "$RUNNER_TEMP/panvk-check/exported-symbols.txt" \
+            || true
+
+          if ! grep -q 'vkGetInstanceProcAddr' \
+            "$RUNNER_TEMP/panvk-check/exported-symbols.txt"; then
+            echo "ERRO: vkGetInstanceProcAddr não foi encontrado."
+            exit 1
+          fi
+
+          echo "FUNÇÃO vkGetInstanceProcAddr ENCONTRADA"
+
+          echo "===== CONTAGEM DE SÍMBOLOS ====="
+          wc -l "$RUNNER_TEMP/panvk-check/exported-symbols.txt"
+
+      - name: Analisar referências Mali G720 e kbase
+        run: |
+          set -e
+
+          SOURCE_DIR="source/mali-panvk-main"
+
+          echo "===== REFERÊNCIAS NO CÓDIGO-FONTE ====="
+
+          for term in \
+            "G720" \
+            "Valhall" \
+            "Bifrost" \
+            "kbase" \
+            "CSF" \
+            "0xc8700010"
+          do
+            echo "----- Procurando: $term -----"
+
+            if grep -R -n -i -E "$term" "$SOURCE_DIR" \
+              --include='*.c' \
+              --include='*.h' \
+              --include='*.cpp' \
+              --include='*.hpp' \
+              --include='*.xml' \
+              --include='*.json' \
+              --include='*.py' \
+              | head -n 20; then
+              echo "Referências encontradas para: $term"
+            else
+              echo "Nenhuma referência textual encontrada para: $term"
+            fi
+          done
+
+          echo "ANÁLISE DE REFERÊNCIAS CONCLUÍDA"
 
       - name: Disponibilizar ZIP compilado
         uses: actions/upload-artifact@v4
