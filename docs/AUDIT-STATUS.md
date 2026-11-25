@@ -187,3 +187,38 @@ Trecho de log enviado pelo usuário, aproximadamente 68–228 s de execução:
 4. Separar otimização de desempenho da correção de tela preta/WSI. O log demonstra degradação severa de desempenho, mas não identifica sozinho a origem nem autoriza uma alteração específica no driver.
 
 **Limite:** o trecho não identifica inequivocamente o nome/versão do ICD carregado. Não atribuir estes números ao build desta branch ou ao Faux123 v1.1.8 sem a linha de inicialização que identifica a biblioteca. O workflow #28 compilou com sucesso o código atualmente empacotado, mas não incluiu uma correção de runtime baseada neste log.
+
+
+
+## Evidência de inicialização/runtime identificada: build desta branch no BOTW (2026-11-25)
+
+O novo trecho enviado pelo usuário identifica explicitamente o ICD utilizado nesta sessão:
+
+- Caminho carregado pelo AdrenoTools: `panvk_poco_x7_pro_mc7.adpkg/libvulkan_panfrost.so`.
+- Dispositivo: PanVK-G720 MC7, vendor `0x13b5`, device `0xc8700010`, Mesa `27.0.0-devel`, API reportada 1.4.363; Android 16 / POCO X7 Pro `2412DPC0AG`.
+- O dispositivo Vulkan foi criado e a swapchain inicializada em 2712x1220, com seis imagens confirmadas pelo runtime. Não há falha explícita de criação de superfície/swapchain neste trecho.
+- O pipeline cache foi ignorado por estar ilegível, malformado ou incompatível, e a execução começou com cache vazio. Isso pode provocar recompilações e stutter durante a primeira execução; ainda não prova ser a única causa.
+- O runtime mantém no máximo 1.500 pipelines e 1.000 programas, com descarte LRU. Deve-se verificar se há churn/evicção e recompilação sob carga antes de alterar esses limites.
+- A tradução de command lists ocorre em uma render thread com um frame de antecedência. O log posterior confirma que essa thread pode esperar por shader/pipeline build.
+- A importação de heap não está disponível (`host import no`); shader global memory é mantida por cópias via CPU. É uma hipótese relevante de custo de CPU/memória, mas não é evidência direta de falha WSI nem autoriza trocar o caminho de memória sem verificar requisitos de coerência e sincronização.
+- O display inicialmente solicita 120 FPS de conteúdo e depois solicita 0 FPS; o jogo define present interval 2 e posteriormente alterna para 3. Isso pode influenciar pacing, mas não comprova a causa raiz.
+- O trecho registra RAM saving desligado e limite de heap do jogo de 3120 MB. O uso de memória e a política de cache merecem medição durante sessões longas.
+
+### Correlação com a telemetria de frames enviada junto
+
+- A compilação de shaders/pipelines é uma causa concreta de parte das pausas: no frame 798 são registrados vários draws ignorados enquanto shaders ainda estão sendo construídos.
+- No watchdog, o render thread está esperando shader/pipeline build enquanto traduz uma command list; há 22 requisições pendentes na fila assíncrona e uma apresentação em andamento.
+- A amostra do frame 904 registra 0,3 FPS, frame máximo de 8.582 ms e `compile 57 (waited 7977ms)`. A mensagem seguinte informa que os frames retomaram após 8,0 s. Essa correlação é forte evidência de uma pausa de compilação de pipeline/shader no caminho crítico desta sessão.
+- A mesma janela registra GPU submitted sequence 3276 e last known done 3261, com último submit 3,4 s antes do watchdog. Isso indica trabalho GPU pendente, mas não demonstra sozinho deadlock do driver nem identifica qual fence/semaphore está bloqueando.
+- Mais tarde, o FPS permanece muito baixo em alguns intervalos, com novas esperas de compilação e framebuffer copies. Logo, otimizar apenas o cache pode reduzir stutter inicial, mas não explica necessariamente toda a degradação.
+- O log não contém erro explícito de `VK_ERROR_DEVICE_LOST`, `VK_ERROR_OUT_OF_DATE_KHR` ou `VK_ERROR_SURFACE_LOST_KHR` neste trecho.
+
+### Prioridade técnica revisada
+
+1. Investigar por que o pipeline cache persistente foi rejeitado: formato/versão/vendor/device/driver UUID, caminho de armazenamento e validade dos dados. Não reutilizar cache incompatível.
+2. Instrumentar e revisar o ciclo de vida de pipeline/shader: compilação assíncrona, deduplicação de pedidos, espera no render thread, cache hit/miss e evicção LRU. Evitar simplesmente aumentar limites sem medir RAM e churn.
+3. Medir o caminho de shader global memory sem heap import e as cópias CPU, identificando quais recursos realmente usam esse caminho e se há uma alternativa segura via DMA-BUF/AHB no aparelho.
+4. Correlacionar submissões e conclusões GPU com fences/semaphores e present, pois a fila ainda tinha trabalho pendente durante o watchdog.
+5. Manter a investigação de WSI/gralloc separada: este trecho prova que a swapchain foi criada e que o jogo chegou a renderizar; não prova que todos os frames foram apresentados corretamente.
+
+**Conclusão:** esta sessão é do binário empacotado nesta branch, não do Faux123. A causa imediata mais bem sustentada para o congelamento de oito segundos é espera de compilação de shader/pipeline no render thread, com trabalho GPU ainda pendente. A causa raiz do cache incompatível e a contribuição de CPU-copy/WSI ainda precisam ser confirmadas. Nenhuma correção de código foi aplicada nesta atualização documental.
