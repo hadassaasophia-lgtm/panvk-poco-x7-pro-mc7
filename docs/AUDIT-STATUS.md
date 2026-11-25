@@ -222,3 +222,34 @@ O novo trecho enviado pelo usuário identifica explicitamente o ICD utilizado ne
 5. Manter a investigação de WSI/gralloc separada: este trecho prova que a swapchain foi criada e que o jogo chegou a renderizar; não prova que todos os frames foram apresentados corretamente.
 
 **Conclusão:** esta sessão é do binário empacotado nesta branch, não do Faux123. A causa imediata mais bem sustentada para o congelamento de oito segundos é espera de compilação de shader/pipeline no render thread, com trabalho GPU ainda pendente. A causa raiz do cache incompatível e a contribuição de CPU-copy/WSI ainda precisam ser confirmadas. Nenhuma correção de código foi aplicada nesta atualização documental.
+
+
+## Inspeção direta dos caminhos de runtime no código-fonte (2026-11-25)
+
+A auditoria foi ampliada para incluir os arquivos completos de implementação relevantes, e não apenas ocorrências de texto. O workflow de inspeção concluiu com sucesso; artefato: `PanVK-Source-Internals-Audit`, run `45595270689`.
+
+### Pipeline/shader/cache
+
+- `panvk_compile_nir()` executa o pipeline NIR e chama `pan_shader_compile()`; a compilação efetiva do shader ocorre nesse caminho.
+- `panvk_compile_shaders()` usa `compiler_lock()/compiler_unlock()`, mas o mutex global só é tomado quando shader dumping ou `PANVK_DEBUG(NIR)` está habilitado. Portanto, o código não mostra um mutex global obrigatório serializando toda compilação em produção.
+- O cache Vulkan interno do dispositivo é criado em `panvk_vX_device.c` com `weak_ref = true`. O uso do disk cache depende de `ENABLE_SHADER_CACHE`, da existência de `physical->disk_cache` e da opção `skip_disk_cache`.
+- `vk_pipeline_cache_load()` rejeita dados iniciais quando o cabeçalho completo não corresponde ao cabeçalho esperado, incluindo tamanho/versão, vendor ID, device ID e pipelineCacheUUID. Isso é um mecanismo de compatibilidade; não prova que a rejeição vista no log veio desse código, pois a mensagem pode ter sido emitida pelo wrapper/aplicativo.
+- O cache de kernels pré-compilados `panvk_precomp_cache` é uma tabela fixa para programas internos, protegida por mutex e preenchida sob demanda. Não é o mesmo cache LRU de pipelines de 1.500 entradas mencionado na telemetria do aplicativo.
+
+### Android WSI, AHardwareBuffer e sincronização KBASE
+
+- `panvk_wsi_init()` inicializa o WSI comum com fd `-1`, ativa suporte a modifiers e callback de apresentação DRM por dispositivo. O arquivo PanVK WSI não contém implementação própria de criação de Android surface; isso mantém a integração Android/gralloc como ponto prioritário de investigação.
+- `panvk_android_import_ahb_memory()` obtém o dma-buf do AHardwareBuffer, verifica compatibilidade de requisitos de memória e importa o fd via `VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT`.
+- Para dispositivos reconhecidos como KBASE, `panvk_GetSwapchainGrallocUsageANDROID/2ANDROID` pede buffers sem AFBC e uso de compositor. A condição depende de `pan_kmod_dev_is_kbase()`; não presumir que foi ativada no aparelho sem log específico.
+- `panvk_AcquireImageANDROID()` faz `poll()` do native fence no CPU por até 5.000 ms quando o dispositivo é KBASE; em timeout/erro, registra aviso e segue desenhando. Essa espera pode contribuir para bloqueios de aquisição em determinadas condições, mas os waits de 30–149 ms do log não provam timeout nem explicam a pausa de compilação de aproximadamente 8 s.
+- O provider KBASE importa sync files como objetos pendentes e permite que a espera seja atendida posteriormente; o comentário do código explica que uma espera imediata em AcquireImage seguraria a aquisição até o compositor liberar o buffer. O caminho precisa ser avaliado junto com a sincronização da submissão GPU, sem remover a espera de segurança.
+- `kbase_kmod_bo_wait()` declara que BO wait ainda não está implementado. Não é seguro concluir que isso causa o problema sem rastrear todos os callers e a estratégia de sincronização KBASE usada nas submissões.
+
+### Conclusão técnica atualizada
+
+1. A compilação de shader/pipeline permanece a explicação mais forte para a pausa de ~8 s, com base no watchdog e na telemetria do jogo.
+2. A integração Android de apresentação e fences é uma segunda frente concreta: há espera CPU de native fence em KBASE e a inicialização PanVK WSI é genérica.
+3. Não foi encontrada evidência suficiente para alterar limites LRU, desativar sincronização, trocar o formato de memória ou aplicar cópias CPU de framebuffer.
+4. Ainda não foi aplicada correção de runtime. As alterações desta etapa foram somente no workflow de auditoria e neste relatório.
+5. Próxima etapa segura: rastrear os callers de `panvk_AcquireImageANDROID`, a implementação Android WSI comum efetivamente compilada e a origem exata da mensagem de cache rejeitado; em paralelo, rastrear a chamada de compilação que bloqueia o render thread no caminho do emulador.
+
