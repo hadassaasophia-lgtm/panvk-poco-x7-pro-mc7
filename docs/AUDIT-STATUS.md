@@ -136,3 +136,31 @@ Nenhuma correção de código-fonte do PanVK é declarada nesta atualização. E
 - Relatório detalhado: [docs/FAUX123-PANVK-ECOSYSTEM-SCAN.md](FAUX123-PANVK-ECOSYSTEM-SCAN.md).
 - Achado principal: há validação FauxVkDB v1.1.8 no POCO X7 Pro/Mali-G720 MC7 (72 checks aprovados), mas também há relatos de tela preta em jogos específicos no mesmo aparelho. A série própria de patches Faux123 está em repositório companheiro privado; não é possível baixar os 149 patches a partir dos repositórios públicos.
 - Nenhuma biblioteca ou patch foi transplantado nesta etapa. O relatório orienta a próxima auditoria de Android WSI/AHB/gralloc, FP16 e ownership de present extensions.
+
+
+
+## Evidência de runtime recebida: BOTW Recomp / Faux123 v1.1.8 (2026-11-25)
+
+Log fornecido pelo usuário para o POCO X7 Pro / MT6899 / Android 16:
+
+- O aplicativo carregou explicitamente `panvk_faux123_v1_1_8_g720_mc7_D/libvulkan_panfrost.so` por AdrenoTools; portanto, este registro é do Faux123 v1.1.8, não do binário compilado nesta branch.
+- O dispositivo Vulkan foi criado como Mali-G720 MC7, vendor `0x13b5`, device `0xc8700010`, API reportada 1.4.363.
+- A swapchain foi criada em 2712x1220; o aplicativo registrou superfície/janela com a mesma dimensão e depois recriou a swapchain ao retornar do segundo plano.
+- O relatório de display mostra buffers de swapchain em `VK_FORMAT_R8G8B8A8_UNORM`, stride 2720, pitch 10880 bytes, modifier zero e fallback `linear-forced 1`. O stride maior que a largura visível é compatível com alinhamento de buffer; não deve ser tratado como erro isoladamente.
+- Os registros `[v12pass]` chegam a n=600, com render targets RGBA8 e importações KBASE repetidas. Isso demonstra atividade de renderização/submissão, mas o contador por si só não prova que cada quadro foi apresentado corretamente nem mede FPS.
+- Não aparece neste trecho `VK_ERROR_DEVICE_LOST`, erro explícito de `vkQueuePresentKHR` ou falha de criação da swapchain. O último evento é retorno do app do segundo plano e recriação da swapchain.
+- O caminho de apresentação linear forçado é uma pista forte para preservar/investigar a compatibilidade MediaTek gralloc/display. Comparar o comportamento do fallback linear com o layout de render targets tiled/modifier `0x800000000000351`; não forçar linear em todos os recursos internos, pois isso pode degradar desempenho.
+- O log informa `no heap import: shader global memory through CPU copies`. Esse caminho de memória merece auditoria de performance separada; não é prova de causa de tela preta.
+- A criação de `/data/.cache` falhou por permissão e o cache de shaders foi desativado. Isso pode afetar compilação/tempo de carregamento, mas não explica sozinho a apresentação preta.
+- O PSS do processo no início da sessão atual era 389 MB; o registro da sessão anterior indica encerramento voluntário (`exit self`, status 0) com PSS 5440 MB e RSS 3271 MB. Não há indicação de crash fatal nesse encerramento anterior, mas o alto uso de memória merece acompanhamento em sessões longas.
+- O usuário confirmou que, com o pacote Faux123 anterior, a imagem aparecia normalmente. Isso é evidência prática de que ao menos essa combinação de driver/app conseguiu apresentar imagem no aparelho. Não generalizar para o nosso build, pois são bibliotecas diferentes.
+
+### Decisões derivadas do log
+
+1. Preservar como referência o comportamento do Faux123 v1.1.8 no mesmo aparelho.
+2. Auditar primeiro o caminho de AHardwareBuffer/gralloc e a seleção do layout linear para buffers efetivamente apresentados à ANativeWindow.
+3. Manter recursos internos tiled quando suportados; converter/selecionar linear somente no limite de apresentação se a implementação e as restrições do display exigirem.
+4. Investigar a ausência de heap import e o cache de shaders como tópicos de desempenho/estabilidade separados.
+5. Solicitar, para uma análise conclusiva de qualquer falha futura, o trecho do log que inclua o momento exato em que a imagem deixa de aparecer, mensagens de present/fence e encerramento do processo.
+
+**Limite:** esta evidência é de runtime do Faux123 v1.1.8. Não confirma que o pacote PanVK compilado nesta branch contém essas correções nem que a tela preta está corrigida em todos os jogos. Nenhuma alteração de código do driver foi feita com base apenas neste log.
