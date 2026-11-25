@@ -79,3 +79,41 @@ Os elementos reproduzíveis publicamente são: base Mesa/commit, série KBASE v0
 - G720 Life is Strange 2 black screen: https://git.eden-emu.dev/eden-emu/eden/issues/4734
 - Reddit v1.1.7: https://www.reddit.com/r/faux123/comments/1xx6hd4/panvk_v117_black_3d_screen_fixed_on_g720g920g925/
 - Reddit v1.1.8: https://www.reddit.com/r/faux123/comments/1xy42ex/panvk_v118_fixes_very_low_frame_rates_and_wrong/
+
+
+## Complemento da varredura — versões antigas e repositório Android WSI/gralloc (25 nov 2026)
+
+### Histórico adicional das versões Faux123
+
+- **v1.1.4:** além de otimizações de tessellation, a release cita correção de importação de buffers compartilhados em Mali-G720 e outros telefones sem recursos de coerência GPU no kernel. Isso é relevante para estabilidade de memória, mas não é a correção principal da tela preta de apresentação.
+- **v1.1.5:** a correção mais importante para nosso MT6899: em MediaTek com Mali-G615/G720 e Android 13+, o driver passou a solicitar formato de framebuffer simples/não comprimido porque o display do aparelho não conseguia ler o formato comprimido usado pelo buffer renderizado. O autor diz que testadores em MT6899/Android 16 e Mali-G720 confirmaram o fim da tela cinza com traços coloridos. Também habilita placed memory maps em G57/G77.
+- **v1.1.6:** otimização de alocação de memória voltada a G57/G77; não muda o caminho de GPUs G610/G710 segundo a release. Sem correção específica anunciada para G720/MT6899.
+- **v1.1.7:** correção FP16 para tela 3D preta em G720/G920/G925 em emuladores Eden-based. O overflow de arredondamento podia virar infinito e depois NaN no blending; o driver passa a arredondar em direção a zero, mantendo o caminho FP16 rápido. Também corrige imagens 2x MSAA e BC4/5/6H.
+- **v1.1.8:** corrige leitura de integer texel buffers interpretados como float (FPS muito baixo/iluminação errada) e crash de frame-generation quando Android loader gerencia swapchain e present-wait. Não anuncia uma nova correção de gralloc/MediaTek além da v1.1.5.
+
+Os quatro repositórios Faux123 (RP4 Pro, RG556, Ace e Pixel 7) publicam o mesmo pacote universal a partir da v1.0.0; portanto, não há uma variante de binário “G720” escondida em um deles. As notas e patches próprios continuam parcialmente privados.
+
+### Nova pista no repositório zenithblue-oss/panvk-kbase-android
+
+A busca encontrou documentação mais recente e um patch experimental **android/014-vendor-neutral-gralloc-mapper-and-hidl-mapper4.patch**, dependente do patch 013 e do hook WSI 017. O documento beta.17 descreve um problema real em ROMs comerciais: o app pode não conseguir consultar o serviço `mapper/mediatek` por bloqueio SELinux (`EX_SECURITY`), e a tentativa de carregar o mapper falha no namespace do app. Sem metadados gralloc, a importação de AHardwareBuffer/swapchain falha com `VK_ERROR_INVALID_EXTERNAL_HANDLE` (-1000072003).
+
+A documentação inclui um caso reproduzido em POCO X6 Pro/MT6897/G615 e outros MediaTek G615: swapchain_lifecycle falha em ROM stock, enquanto funciona no aparelho de desenvolvimento com ambiente diferente. É uma pista de arquitetura muito próxima do nosso problema no POCO X7 Pro/MT6899, mas ainda não é prova de que o mesmo bloqueio ocorre no nosso aparelho.
+
+O patch 014 tenta descobrir o mapper de forma independente do fabricante e suportar HIDL mapper4; quando o namespace bloqueia tudo, tenta uma sondagem linear restrita a AHBs alocados pelo próprio driver. **Não aplicar diretamente:** o próprio patch usa chamadas pela ABI C++/vtable do HIDL, tem dependências específicas e declara testes em hardware diferente (MT8755/G57, não nosso MT6899/G720). O texto do patch também se identifica como gerado por LLM. Exige revisão de ABI, compilação, testes de segurança de memória e validação real antes de qualquer port.
+
+### Consequência para o plano de correção
+
+Prioridade de investigação atual:
+1. Verificar nos logs do nosso app se o mapper MediaTek é encontrado e se a consulta de metadados AHB falha; procurar `mapper load failed`, `SELinux denied`, `VK_ERROR_INVALID_EXTERNAL_HANDLE` e erros de `vkCreateSwapchainKHR`.
+2. Comparar o caminho de seleção de formato do framebuffer da v1.1.5, incluindo formato simples vs comprimido, com o nosso código.
+3. Auditar import/export AHB, metadados de planos, modifier, stride, offsets e fences; não inferir layout por chute.
+4. Portar separadamente os fixes FP16 da v1.1.7 e loader/present-wait da v1.1.8, com testes de regressão.
+5. Não usar a rota CPU memcpy + DeviceWaitIdle por frame como solução final: a documentação upstream também a classifica como provisória/lenta e aponta zero-copy AHB/SurfaceControl como direção de otimização.
+
+### Fontes públicas adicionais
+
+- Faux123 v1.1.4–v1.1.8: https://github.com/faux123/panvk-faux123-driver-rp4pro/releases
+- zenithblue Android WSI/KBASE: https://github.com/zenithblue-oss/panvk-kbase-android
+- Status Mali v11 e evidência do mapper/SELinux: https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/docs/universal/v11/README.md
+- Patch experimental mapper neutro: https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/patches/android/014-vendor-neutral-gralloc-mapper-and-hidl-mapper4.patch
+- Plano de apresentação Android zero-copy: https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/docs/plans/PANVK_GAME_LAUNCHER.md
