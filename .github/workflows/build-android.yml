@@ -25,6 +25,13 @@ jobs:
             python3-mako python3-packaging python3-yaml \
             cmake git build-essential binutils file
 
+      - name: Validar perfil e integridade do código-fonte
+        run: |
+          python3 scripts/validate_project.py \
+            --archive mali-panvk-main.zip \
+            --meta meta.json \
+            --profile profiles/poco-x7-pro-mc7.json
+
       - name: Extrair código-fonte
         run: |
           mkdir -p source
