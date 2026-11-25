@@ -64,3 +64,22 @@ Links fixos:
 - https://github.com/zenithblue-oss/panvk-kbase-android/blob/panvk-kbase-v26.3.1/profiles/g720-v12-csf.json
 - https://github.com/zenithblue-oss/panvk-kbase-android/blob/panvk-kbase-v26.3.1/scripts/apply-patches.sh
 - https://github.com/zenithblue-oss/panvk-kbase-android/blob/panvk-kbase-v26.3.1/patches/README.md
+
+## Pipeline de compilação experimental
+
+Foi criado `.github/workflows/build-panvk-kbase-v26.yml` na branch de migração. O workflow:
+
+1. Clona o tag upstream imutável `panvk-kbase-v26.3.1` e verifica o commit `3c82008657f3edd44cc5fbed4c2f80f8a29c90fc`.
+2. Lê e verifica o commit Mesa `5a07217f034b3e50d8c7c7794f97a2df1742613b` de `sources.lock`.
+3. Aplica as famílias de patches selecionadas pelo script upstream para `g720-v12-csf`.
+4. Compila Android ARM64 com NDK r29 e API mínima 35.
+5. Faz verificações estáticas e prepara um pacote ADPKG marcado explicitamente como `experimental_unverified`, com proveniência e hashes.
+
+Execução iniciada pelo push:
+- Run: https://github.com/hadassaasophia-lgtm/panvk-poco-x7-pro-mc7/actions/runs/45602166811
+- Run ID: `45602166811`
+- Commit inicial do workflow: `e8d30089bcad480495ecaefdae294689713a6eff`
+
+Uma correção de empacotamento (uso do NOTICE.md do upstream e newline válido nos JSON) foi aplicada depois que essa primeira execução começou. Portanto, se a primeira execução alcançar a etapa de empacotamento, ela pode refletir a versão inicial do workflow; a revisão atual na branch contém a correção e deverá ser usada em uma execução posterior se necessário.
+
+**Importante:** este pipeline não inventa patches CSF v12 ausentes. O resultado, se compilar, será apenas um candidato experimental para teste controlado; não prova suporte ao MC7 nem resolve a tela preta por si só.
