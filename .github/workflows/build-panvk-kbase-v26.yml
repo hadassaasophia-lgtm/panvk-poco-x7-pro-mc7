@@ -148,7 +148,7 @@ jobs:
             "architecture":"Mali v12 CSF",
             "status":"experimental_unverified"
           }
-          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\\n")
+          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\n")
           PY
           (cd "$STAGE" && sha256sum libvulkan_panfrost.so > SHA256SUMS.txt)
           python3 - "$STAGE/SOURCE.json" <<'PY'
@@ -163,7 +163,7 @@ jobs:
             "profile":"g720-v12-csf",
             "deviceValidation":"not_performed"
           }
-          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\\n")
+          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\n")
           PY
           (cd "$STAGE" && zip -q ../panvk_poco_x7_pro_mc7_v26.3.1.adpkg.zip \
             libvulkan_panfrost.so meta.json NOTICE.txt SHA256SUMS.txt SOURCE.json)
