@@ -79,15 +79,11 @@ jobs:
         run: |
           set -euo pipefail
           ./scripts/apply-patches.sh --profile g720-v12-csf --mesa work/mesa
-          echo "===== APPLY PINNED G720 CSF REGISTER-COUNT FIX ====="
-          G720_PATCH="$GITHUB_WORKSPACE/patches/csf/0001-g720-csf-register-count.patch"
-          test -s "$G720_PATCH"
-          git -C work/mesa apply --check "$G720_PATCH"
-          git -C work/mesa apply "$G720_PATCH"
-          mkdir -p patches/csf
-          cp "$G720_PATCH" patches/csf/0001-g720-csf-register-count.patch
-          grep -n -A4 -B3 "cs_reg_count = (stream_features" work/mesa/src/panfrost/lib/kmod/kbase_kmod.c
-          grep -n -A4 -B2 "nr_kernel_registers" work/mesa/src/panfrost/vulkan/csf/panvk_vX_gpu_queue.c
+          echo "===== VERIFY UPSTREAM PATCH SERIES; HOLD UNVERIFIED G720 DELTA ====="
+          echo "The external G720 register-count patch does not apply cleanly to pinned Mesa commit."
+          echo "It is intentionally excluded; no offset/fuzz or forced patch application is allowed."
+          grep -n -A8 -B5 "cs_reg_count" work/mesa/src/panfrost/lib/kmod/kbase_kmod.c || true
+          grep -n -A6 -B4 "nr_kernel_registers" work/mesa/src/panfrost/vulkan/csf/panvk_vX_gpu_queue.c || true
           SERIES="$(python3 scripts/compute-patch-series-id.py --profile g720-v12-csf)"
           echo "PATCH_SERIES_ID=$SERIES" >> "$GITHUB_ENV"
           echo "Patch series: $SERIES"
