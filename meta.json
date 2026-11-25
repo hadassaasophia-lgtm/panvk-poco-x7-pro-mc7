@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
   "name": "PanVK POCO X7 Pro MC7 Custom",
-  "description": "Driver Vulkan personalizado para Mali-G720 MC7",
+  "description": "Driver Vulkan experimental direcionado ao Mali-G720 MC7; compatibilidade em aparelho real ainda não comprovada.",
   "author": "POCO X7 Pro MC7 Project",
   "library": "libvulkan_panfrost.so",
-  "supported_devices": [
+  "target_devices": [
     "POCO X7 Pro"
   ],
   "gpu": "Mali-G720 MC7",
-  "architecture": "arm64-v8a"
+  "architecture": "arm64-v8a",
+  "status": "experimental_unverified"
 }
