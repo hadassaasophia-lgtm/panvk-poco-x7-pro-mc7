@@ -1,0 +1,132 @@
+name: Build Faux123 Mesa 26.3.0 base — POCO X7 Pro MC7
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/faux123-v1.1.8-g720-mc7
+
+concurrency:
+  group: faux123-mesa2630-g720-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-g720:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      PANVK_JOBS: "2"
+      ANDROID_API: "35"
+    steps:
+      - name: Checkout audit project
+        uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl wget unzip zip python3 python3-pip pkg-config ninja-build glslang-tools cmake build-essential binutils file libdrm-dev libxcb1-dev libxcb-randr0-dev libxcb-dri3-dev libxcb-present-dev libxcb-shm0-dev libxcb-sync-dev libxcb-xfixes0-dev libx11-dev libx11-xcb-dev libxshmfence-dev
+          python3 -m pip install --break-system-packages "meson>=1.4.0" mako packaging pyyaml
+
+      - name: Install LLVM 21 and matching SPIR-V translator
+        run: |
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get update
+          sudo apt-get install -y llvm-21-dev libclang-21-dev clang-21 libclc-21-dev
+          git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git "$RUNNER_TEMP/SPIRV-LLVM-Translator"
+          git -C "$RUNNER_TEMP/SPIRV-LLVM-Translator" checkout --detach v21.1.8
+          test "$(git -C "$RUNNER_TEMP/SPIRV-LLVM-Translator" rev-parse HEAD)" = "0b421acdd1dc8cc7e4d1a436e65511d7784ce522"
+          cmake -S "$RUNNER_TEMP/SPIRV-LLVM-Translator" -B "$RUNNER_TEMP/SPIRV-LLVM-Translator/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DLLVM_DIR=/usr/lib/llvm-21/lib/cmake/llvm -DLLVM_SPIRV_INCLUDE_TESTS=OFF -DBUILD_SHARED_LIBS=ON
+          cmake --build "$RUNNER_TEMP/SPIRV-LLVM-Translator/build" --parallel 2
+          sudo cmake --install "$RUNNER_TEMP/SPIRV-LLVM-Translator/build"
+          sudo ldconfig
+          echo "SPIRV_TRANSLATOR_SHA=0b421acdd1dc8cc7e4d1a436e65511d7784ce522" >> "$GITHUB_ENV"
+
+      - name: Download Android NDK r29
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fL --retry 5 -o android-ndk-r29-linux.zip https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+          unzip -q android-ndk-r29-linux.zip
+          test -x "$RUNNER_TEMP/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          echo "ANDROID_NDK_ROOT=$RUNNER_TEMP/android-ndk-r29" >> "$GITHUB_ENV"
+
+      - name: Fetch exact Faux123 public base (Mesa 26.3.0 + KBASE RC4)
+        run: |
+          set -euo pipefail
+          git clone https://github.com/zenithblue-oss/panvk-kbase-android.git upstream
+          git -C upstream checkout --detach 5b87b74d3e2580d5816e7f2c629f6f016a462f28
+          test "$(git -C upstream rev-parse HEAD)" = "5b87b74d3e2580d5816e7f2c629f6f016a462f28"
+          test "$(python3 -c "import json; print(json.load(open('upstream/sources.lock'))['mesaCommit'])")" = "5a07217f034b3e50d8c7c7794f97a2df1742613b"
+          test "$(python3 -c "import json; print(json.load(open('upstream/sources.lock'))['mesaVersion'])")" = "26.3.0-devel"
+          python3 - <<'PY'
+          import json
+          p=json.load(open("upstream/profiles/g720-v12-csf.json"))
+          assert p["gpu"] == "Mali-G720" and p["panArch"] == 12 and p["frontend"] == "CSF"
+          print("Pinned profile:", json.dumps(p, sort_keys=True))
+          PY
+          echo "KBASE_RC4_COMMIT=5b87b74d3e2580d5816e7f2c629f6f016a462f28" >> "$GITHUB_ENV"
+          echo "MESA_COMMIT=5a07217f034b3e50d8c7c7794f97a2df1742613b" >> "$GITHUB_ENV"
+          echo "UPSTREAM_TAG=public RC4 source commit" >> "$GITHUB_ENV"
+
+      - name: Fetch pinned Mesa source
+        working-directory: upstream
+        run: ./scripts/fetch-mesa.sh
+
+      - name: Apply exact public KBASE RC4 G720 v12 CSF patch series
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          ./scripts/apply-patches.sh --profile g720-v12-csf --mesa work/mesa
+          git -C work/mesa diff --check
+          python3 scripts/compute-patch-series-id.py --profile g720-v12-csf
+          git -C work/mesa status --short
+
+      - name: Build Android ARM64 PanVK from Mesa 26.3.0 base
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          ./scripts/build-android.sh --profile g720-v12-csf --api 35 --ndk "$ANDROID_NDK_ROOT"
+          SO="dist/android-g720-v12-csf/libvulkan_panfrost.so"
+          test -s "$SO"
+          file "$SO"
+          readelf -h "$SO" | grep -E 'ELF64|AArch64'
+          readelf -d "$SO" | grep NEEDED || true
+          sha256sum "$SO"
+
+      - name: Package experimental build with explicit provenance
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          SO="dist/android-g720-v12-csf/libvulkan_panfrost.so"
+          STAGE="dist/panvk-poco-x7-pro-mc7-mesa2630-public-base"
+          mkdir -p "$STAGE"
+          cp "$SO" "$STAGE/libvulkan_panfrost.so"
+          cp NOTICE.md "$STAGE/NOTICE.txt"
+          python3 - "$STAGE/meta.json" "$STAGE/SOURCE.json" <<'PY'
+          import json,sys
+          meta={"schemaVersion":1,"name":"PanVK POCO X7 Pro MC7 — Mesa 26.3.0 public Faux123 base (experimental)","author":"Mesa / panvk-kbase-android integration","packageVersion":"26.3.0-faux123-base-g720-mc7-experimental","vendor":"Mesa","description":"Built from the exact public Mesa commit and KBASE RC4 base named by Faux123 v1.1.8. Does NOT contain Faux123's 149 private patches; not a byte-identical Faux123 build and not device-validated.","driverVersion":"26.3.0-devel","minApi":35,"libraryName":"libvulkan_panfrost.so","gpu":"ARM Mali-G720 MC7","gpuId":"0xc8700010","architecture":"Mali v12 CSF","status":"experimental_unverified"}
+          source={"mesaCommit":"5a07217f034b3e50d8c7c7794f97a2df1742613b","kbaseRepository":"https://github.com/zenithblue-oss/panvk-kbase-android","kbaseCommit":"5b87b74d3e2580d5816e7f2c629f6f016a462f28","profile":"g720-v12-csf","faux123Reference":"v1.1.8 public release states Mesa 5a07217f + KBASE v0.1.0-rc4 5b87b74 + 149 private patches","faux123PrivatePatchesIncluded":False,"deviceValidation":"not_performed","spirvTranslatorCommit":"0b421acdd1dc8cc7e4d1a436e65511d7784ce522"}
+          for p,d in [(sys.argv[1],meta),(sys.argv[2],source)]:
+            with open(p,"w") as f: json.dump(d,f,indent=2); f.write("\n")
+          PY
+          (cd "$STAGE" && sha256sum libvulkan_panfrost.so > SHA256SUMS.txt)
+          (cd "$STAGE" && zip -q ../panvk_poco_x7_pro_mc7_mesa2630_faux123_public_base.adpkg.zip libvulkan_panfrost.so meta.json NOTICE.txt SOURCE.json SHA256SUMS.txt)
+          unzip -t dist/panvk_poco_x7_pro_mc7_mesa2630_faux123_public_base.adpkg.zip
+          sha256sum dist/panvk_poco_x7_pro_mc7_mesa2630_faux123_public_base.adpkg.zip
+
+      - name: Upload ARM64 library and ADPKG
+        uses: actions/upload-artifact@v4
+        with:
+          name: PanVK-POCO-X7-Pro-MC7-Mesa-26.3.0-Faux123-public-base-EXPERIMENTAL
+          path: |
+            upstream/dist/android-g720-v12-csf/libvulkan_panfrost.so
+            upstream/dist/panvk_poco_x7_pro_mc7_mesa2630_faux123_public_base.adpkg.zip
+            upstream/dist/panvk-poco-x7-pro-mc7-mesa2630-public-base/meta.json
+            upstream/dist/panvk-poco-x7-pro-mc7-mesa2630-public-base/SOURCE.json
+            upstream/dist/panvk-poco-x7-pro-mc7-mesa2630-public-base/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
