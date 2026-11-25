@@ -1,0 +1,40 @@
+--- a/src/panfrost/vulkan/panvk_android.c
++++ b/src/panfrost/vulkan/panvk_android.c
+@@ -455,24 +455,27 @@
+-/*
+- * The compositor hands the buffer over with a sync fd that signals once the display is done
+- * reading it. vk_common imports it into the semaphore as a DRM syncobj, and kbase answers the
+- * syncobj ioctls with success without doing anything, so the wait would be dropped and the GPU
+- * could draw into a buffer still on screen. Every kbase submission already blocks until the GPU
+- * is done, so waiting for the fd here, on the CPU, is the whole of the ordering.
+- */
++/*
++ * KBASE uses PanVK's userspace DRM syncobj provider. When the application supplies a semaphore
++ * or fence, vk_common_AcquireImageANDROID imports the native sync file through that provider;
++ * the pending fence is then waited on when the submission consumes it. Do not CPU-wait here:
++ * doing so serializes image acquisition with the compositor and prevents the CPU from preparing
++ * the frame while the buffer is being released.
++ *
++ * If neither synchronization object is supplied, there is nowhere to import the dependency, so
++ * retain the CPU wait before returning the image to the application.
++ */
+ VKAPI_ATTR VkResult VKAPI_CALL
+ panvk_AcquireImageANDROID(VkDevice device, VkImage image, int nativeFenceFd,
+                           VkSemaphore semaphore, VkFence fence)
+ {
+-   if (nativeFenceFd >= 0 && panvk_android_is_kbase(device)) {
++   if (nativeFenceFd >= 0 && panvk_android_is_kbase(device) &&
++       semaphore == VK_NULL_HANDLE && fence == VK_NULL_HANDLE) {
+       struct pollfd pfd = {.fd = nativeFenceFd, .events = POLLIN};
+       int ret;
+       do {
+          ret = poll(&pfd, 1, 5000);
+       } while (ret < 0 && (errno == EINTR || errno == EAGAIN));
+       if (ret <= 0)
+          mesa_logw("panvk: the acquire fence did not signal (poll %d), drawing anyway", ret);
+       close(nativeFenceFd);
+       nativeFenceFd = -1;
+   }
+
+   return vk_common_AcquireImageANDROID(device, image, nativeFenceFd, semaphore, fence);
+ }
