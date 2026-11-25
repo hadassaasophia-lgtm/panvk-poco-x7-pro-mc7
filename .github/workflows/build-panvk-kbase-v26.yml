@@ -114,6 +114,18 @@ jobs:
           fi
           git -C work/mesa status --short
 
+      - name: Disable unused X11 WSI for Android-only package
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          # BOTW Recomp uses Android WSI; X11 WSI pulls XCB symbols that are not
+          # part of the Android runtime package and currently fail cross-linking.
+          # Keep Android WSI enabled and exclude the unused X11 platform.
+          grep -F -- '-Dplatforms=android,x11' scripts/build-android.sh
+          sed -i 's/-Dplatforms=android,x11/-Dplatforms=android/' scripts/build-android.sh
+          grep -F -- '-Dplatforms=android ' scripts/build-android.sh
+          sha256sum scripts/build-android.sh | tee ../android-build-script.sha256
+
       - name: Build Android ARM64 PanVK
         working-directory: upstream
         run: |
