@@ -253,3 +253,24 @@ A auditoria foi ampliada para incluir os arquivos completos de implementação r
 4. Ainda não foi aplicada correção de runtime. As alterações desta etapa foram somente no workflow de auditoria e neste relatório.
 5. Próxima etapa segura: rastrear os callers de `panvk_AcquireImageANDROID`, a implementação Android WSI comum efetivamente compilada e a origem exata da mensagem de cache rejeitado; em paralelo, rastrear a chamada de compilação que bloqueia o render thread no caminho do emulador.
 
+
+
+## Rastreamento adicional de cache e fences KBASE (2026-11-25)
+
+A leitura dos arquivos completos confirma alguns detalhes que não apareciam no primeiro relatório:
+
+- O caminho de compilação de shader chama `pan_shader_compile()` diretamente após o pós-processamento NIR. A função `panvk_compile_shaders()` envolve a chamada em `compiler_lock/unlock`, mas esse mutex só bloqueia quando shader dumping ou debug NIR está habilitado. Portanto, não há evidência aqui de um mutex global de compilação ativo em produção.
+- O driver registra callbacks `serialize` e `deserialize` para seus shaders. A serialização armazena metadados de shader, binário compilado, dados auxiliares e strings de NIR/assembly quando presentes. A desserialização valida diversos limites e erros de leitura antes do upload do binário.
+- A propriedade `pipelineCacheUUID` e `shaderBinaryUUID` vem de `device->cache_uuid`. O recurso de cache interno de pipeline binary é anunciado somente quando `device->vk.disk_cache != NULL`. O device também cria um cache Vulkan em memória com `weak_ref = true`; isso, isoladamente, não garante persistência entre execuções.
+- A mensagem de runtime sobre cache rejeitado não pode ser atribuída ao cache Mesa apenas com o trecho de log atual. Precisamos identificar quem a emite e obter o UUID/cabeçalho do cache utilizado pelo app.
+
+### Sincronização KBASE observada no código
+
+- O provider KBASE mantém syncobjs em uma tabela de processo, com estados `UNSIGNALED`, `SIGNALED` e `SUBMITTED`; uma submissão CSF associa sequência/grupo e pode exportar um sync file da GPU.
+- `ks_import_sync_file()` duplica o fence e o mantém pendente em vez de bloquear a chamada de importação. O comentário explica que esperar nesse ponto segurava `vkAcquireNextImageKHR` até o compositor liberar o buffer.
+- `pan_kmod_kbase_submit_async()` cria um soft fence trigger dependente dos jobs GPU para exportar um sync file; a fila usa thread de eventos para receber conclusão. Isso mostra que existe um mecanismo de fence assíncrono no provider.
+- Ao mesmo tempo, `panvk_AcquireImageANDROID()` faz um `poll()` explícito de até 5.000 ms para native fence quando `panvk_android_is_kbase()` é verdadeiro. O comentário dessa função diz que o syncobj DRM comum não preservaria a espera no KBASE.
+- A coexistência desses dois caminhos exige confirmar a sequência real de chamadas na implementação Android comum e no loader. O poll explícito pode explicar parte dos bloqueios de aquisição medidos (30–149 ms), mas não há evidência para removê-lo com segurança ainda.
+- O caminho de importação AHardwareBuffer duplica o dma-buf e usa `VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT`; o código consulta os requisitos de memória e corrige o tipo de memória para um tipo compatível. Isso não comprova que o caminho host import está habilitado para heap global de shaders.
+
+**Ação segura:** não alterar o poll de fence nem o provider sync até mapear as chamadas entre `vkAcquireNextImageKHR`, `vkAcquireImageANDROID`, importação de semaphore fd e submissão KBASE. Uma mudança prematura pode converter um atraso visível em corrupção de buffer ou tela preta.
