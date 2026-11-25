@@ -82,3 +82,13 @@ Nenhuma correção de código-fonte do PanVK é declarada nesta atualização. E
 - A mesma triagem separa esse sintoma de falhas de GPU/device-lost e de problemas de memória após minutos de jogo. Portanto, não se deve alterar shader, swapchain ou alocação Vulkan sem identificar o último marco do log no nosso caso.
 - O log já fornecido para este aparelho confirma criação do dispositivo Vulkan e da swapchain, mas o trecho termina antes de mostrar o evento exato que antecede a tela preta. Não há evidência suficiente para aplicar uma correção segura no código PanVK.
 - Referência técnica: `mamcjr/BOTWRecompAndroid/docs/BOTW-PORT.md`, triagem de 2026-10-30, família de falhas de vídeo (#93 Mali-G720; #86/#107 Xclipse 530; #113 arquivo de vídeo ausente). A correção precisa ser dirigida ao componente que falha, e não presumida como correção de driver.
+
+
+## Nova evidência: falha geral de apresentação (WSI) no mesmo aparelho
+
+- Foi localizada a issue pública `zenithblue-oss/panvk-kbase-android#16`, relatando tela preta em importação AdrenoTools no Xiaomi `2412DPC0AG` / `rodin`, Mali-G720 MC7, Android 16 — o mesmo modelo/GPU/versão Android deste projeto.
+- Nesse relato, o PanVK enumera a GPU e executa submissões, mas `vkCreateSwapchainKHR` falha com `VK_ERROR_INCOMPATIBLE_DISPLAY_KHR`; o log também informa ausência de gralloc hwmodule e uso de fallback. O autor aponta a integração Android WSI / ANativeWindow / gralloc como suspeita.
+- Como o proprietário informa agora que todos os jogos ficam pretos, a hipótese prioritária passa a ser uma falha comum de apresentação (WSI/swapchain/ANativeWindow/gralloc) no driver empacotado, em vez de um defeito exclusivo do BOTW.
+- A issue é evidência comparativa forte, mas não prova que este binário apresenta o mesmo erro: o log fornecido anteriormente registra criação de swapchain, e ainda não contém o resultado de apresentação nem erro WSI. Não se deve aplicar um ajuste arbitrário de `compositeAlpha`, gralloc ou swapchain sem confirmar o caminho efetivamente usado pelo nosso build.
+- Referência: https://github.com/zenithblue-oss/panvk-kbase-android/issues/16
+- Nenhuma alteração na biblioteca foi feita nesta etapa. A correção precisa atuar na implementação Android WSI compatível com o loader de importação; compilar novamente sem essa correção não resolveria a causa.
