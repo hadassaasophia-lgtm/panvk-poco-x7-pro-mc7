@@ -3,6 +3,9 @@ name: Build PanVK POCO X7 Pro MC7
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - audit/fix-panvk-g720-mc7
 
 permissions:
   contents: read
