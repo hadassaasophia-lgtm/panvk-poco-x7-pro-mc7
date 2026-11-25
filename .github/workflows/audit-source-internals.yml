@@ -102,6 +102,14 @@ jobs:
             src/panfrost/lib/kmod/kbase_kmod.c
             src/vulkan/runtime/vk_pipeline_cache.c
             src/vulkan/runtime/vk_pipeline_cache.h
+            src/vulkan/wsi/wsi_common_android.c
+            src/vulkan/wsi/wsi_common.c
+            src/vulkan/runtime/vk_sync.c
+            src/vulkan/runtime/vk_sync.h
+            src/vulkan/runtime/vk_shader.c
+            src/panfrost/vulkan/panvk_queue.c
+            src/panfrost/vulkan/panvk_queue.h
+            src/panfrost/lib/kmod/pan_kmod.h
             src/vulkan/runtime/vk_pipeline.c
             src/panfrost/vulkan/csf/panvk_vX_cmd_draw.c
             src/panfrost/vulkan/csf/panvk_vX_cmd_precomp.c
