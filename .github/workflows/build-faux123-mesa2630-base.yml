@@ -93,6 +93,10 @@ jobs:
         working-directory: upstream
         run: |
           set -euo pipefail
+          # This artifact is an Android-only ICD for AdrenoTools; do not build the
+          # optional X11 platform in the Android cross build (it pulls host Xlib headers).
+          sed -i 's/-Dplatforms=android,x11/-Dplatforms=android/' scripts/build-android.sh
+          grep -q -- '-Dplatforms=android ' scripts/build-android.sh
           ./scripts/build-android.sh --profile g720-v12-csf --api 35 --ndk "$ANDROID_NDK_ROOT"
           SO="dist/android-g720-v12-csf/libvulkan_panfrost.so"
           test -s "$SO"
