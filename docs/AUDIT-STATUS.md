@@ -321,3 +321,10 @@ A comparação das notas oficiais Faux123 esclareceu que `linear-forced 1` no bu
 Relatório detalhado: [docs/BLACK-SCREEN-AND-PRESENT-PATH.md](BLACK-SCREEN-AND-PRESENT-PATH.md).
 
 Nenhum patch de runtime foi aplicado; a próxima etapa continua sendo distinguir acquire, submit, release fence e present com log do episódio da tela preta.
+
+
+## Auditoria completa dos patches Android present (2026-11-25)
+
+Leitura dos patches WSI 016/017 e jm-v7-wip 0117/0118 concluída. WSI 016 usa AHB próprio e copia pixels por CPU para ANativeWindow, além de `DeviceWaitIdle` por present; 0117 troca o idle global pela fence da imagem e 0118 move a cópia para uma thread com filas de acquire/present. A cópia CPU continua existindo (notas de referência: ~8 MB por quadro 1080p). Esses patches foram testados em G615/Poco X6 Pro ou em outros cenários, não constituem validação para G720 MC7 no POCO X7 Pro. Não portar diretamente: base Faux123 v1.1.8 é RC4 + patches privados, RC10 sem fonte pública verificada, e faltam logs que classifiquem o ponto de falha. Relatório: [docs/ANDROID-PRESENT-PATCH-AUDIT.md](ANDROID-PRESENT-PATCH-AUDIT.md).
+
+Status: análise documental e comparação de patches concluídas; sem build/teste no aparelho e sem alteração de binário. Próximo passo indispensável para correção verificada: obter log de present/fence do episódio de tela preta e a fonte exata da release a modificar.
