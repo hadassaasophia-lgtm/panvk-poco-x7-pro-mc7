@@ -149,10 +149,13 @@ jobs:
           python3 - "$STAGE/meta.json" <<'PY'
           import json,sys
           d={
+            "schemaVersion":1,
             "name":"PanVK KBASE v26.3.1 — Mali-G720 MC7 experimental",
             "author":"Mesa / panvk-kbase-android integration",
+            "packageVersion":"26.3.1-poco-x7-pro-mc7",
+            "vendor":"Mesa",
             "description":"Experimental Android ARM64 PanVK build. G720 v12 CSF profile is not yet validated on POCO X7 Pro.",
-            "driverVersion":"Mesa 26.3.0-devel (git-5a07217f; KBASE v26.3.1 patch series)",
+            "driverVersion":"26.3.0-devel",
             "minApi":35,
             "libraryName":"libvulkan_panfrost.so",
             "gpu":"ARM Mali-G720 MC7",
