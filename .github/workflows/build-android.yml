@@ -392,10 +392,36 @@ jobs:
 
           echo "AUDITORIA ESPECÍFICA CONCLUÍDA"
 
+      - name: Preparar pacote AdrenoTools ADPKG
+        run: |
+          set -euo pipefail
+          SOURCE_ZIP="source/mali-panvk-main/dist/mali-panvk-27.0.0-devel.zip"
+          OUT_DIR="source/mali-panvk-main/dist-adpkg"
+          OUT="$OUT_DIR/panvk_poco_x7_pro_mc7.adpkg.zip"
+          test -s "$SOURCE_ZIP"
+          mkdir -p "$OUT_DIR"
+          cp "$SOURCE_ZIP" "$OUT"
+          unzip -t "$OUT"
+          unzip -Z1 "$OUT" | grep -qx 'meta.json'
+          unzip -Z1 "$OUT" | grep -qx 'libvulkan_panfrost.so'
+          unzip -p "$OUT" meta.json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("libraryName") == "libvulkan_panfrost.so"; assert all(k in d for k in ("name","driverVersion","minApi","libraryName"))'
+          echo "===== ADPKG SHA-256 ====="
+          sha256sum "$OUT"
+          echo "===== ADPKG CONTENTS ====="
+          unzip -l "$OUT"
+
       - name: Disponibilizar ZIP compilado
         uses: actions/upload-artifact@v4
         with:
           name: PanVK-POCO-X7-Pro-MC7
           path: source/mali-panvk-main/dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Disponibilizar pacote ADPKG
+        uses: actions/upload-artifact@v4
+        with:
+          name: PanVK-POCO-X7-Pro-MC7-ADPKG
+          path: source/mali-panvk-main/dist-adpkg/panvk_poco_x7_pro_mc7.adpkg.zip
           if-no-files-found: error
           retention-days: 14
