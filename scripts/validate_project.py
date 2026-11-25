@@ -61,7 +61,7 @@ def main():
 
         for name in names:
             path = PurePosixPath(name)
-            if path.is_absolute() or ".." in path.parts or "\\\\" in name:
+            if path.is_absolute() or ".." in path.parts or "\\" in name:
                 fail(f"unsafe path in source ZIP: {name!r}")
 
         required = {
