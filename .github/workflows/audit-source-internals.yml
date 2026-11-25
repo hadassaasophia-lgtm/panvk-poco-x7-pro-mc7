@@ -91,6 +91,8 @@ jobs:
           mkdir -p "$OUT"
           files=(
             src/panfrost/vulkan/panvk_vX_shader.c
+            src/panfrost/vulkan/panvk_vX_device.c
+            src/panfrost/vulkan/panvk_vX_physical_device.c
             src/panfrost/vulkan/panvk_vX_precomp_cache.c
             src/panfrost/vulkan/panvk_precomp_cache.h
             src/panfrost/vulkan/panvk_wsi.c
