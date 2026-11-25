@@ -1,0 +1,91 @@
+name: Audit PanVK source internals
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/fix-panvk-g720-mc7
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract source and inspect runtime paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source audit-output
+          unzip -q mali-panvk-main.zip -d source
+          ROOT="source/mali-panvk-main"
+          test -d "$ROOT/src"
+          python3 - "$ROOT" audit-output/source-internals.txt <<'PY'
+          import os, re, sys
+          root, out = sys.argv[1:]
+          terms = [
+              r'pipeline.?cache', r'cache.?pipeline', r'vkCreatePipelineCache',
+              r'vkGetPipelineCacheData', r'pipeline_cache_uuid', r'driverUUID',
+              r'deviceUUID', r'CreateGraphicsPipelines', r'CreateComputePipelines',
+              r'shader.?compile', r'compile.?shader', r'panvk_wsi',
+              r'vkAcquireNextImageKHR', r'vkQueuePresentKHR', r'queue_present',
+              r'ahardwarebuffer', r'AHardwareBuffer', r'dma.?buf',
+              r'global.?mem', r'placed.?map', r'host.?import',
+              r'panvk_pipeline', r'panvk_shader'
+          ]
+          rx = re.compile('|'.join('(?:%s)' % t for t in terms), re.I)
+          exts = ('.c','.h','.cc','.cpp','.hpp','.inc','.xml','.py','.meson')
+          files = []
+          for base, dirs, names in os.walk(root):
+              dirs[:] = [d for d in dirs if d not in ('build','build-android','.git')]
+              for name in names:
+                  p = os.path.join(base, name)
+                  if name.endswith(exts):
+                      files.append(p)
+          hits = []
+          for p in files:
+              try:
+                  with open(p, encoding='utf-8', errors='replace') as f:
+                      lines = f.readlines()
+              except OSError:
+                  continue
+              indexes = [i for i, line in enumerate(lines) if rx.search(line)]
+              if indexes:
+                  hits.append((p, lines, indexes))
+          with open(out, 'w', encoding='utf-8') as f:
+              f.write('PANVK SOURCE INTERNAL AUDIT\\n')
+              f.write('Files scanned: %d\\nMatched files: %d\\n\\n' % (len(files), len(hits)))
+              f.write('===== RELEVANT SOURCE FILES =====\\n')
+              for p, _, _ in hits:
+                  f.write(os.path.relpath(p, root) + '\\n')
+              f.write('\\n===== MATCH CONTEXTS (up to 12 per file) =====\\n')
+              for p, lines, indexes in hits:
+                  f.write('\\n--- %s ---\\n' % os.path.relpath(p, root))
+                  chosen = []
+                  for i in indexes[:12]:
+                      lo, hi = max(0, i-5), min(len(lines), i+7)
+                      if chosen and lo <= chosen[-1][1]:
+                          chosen[-1] = (chosen[-1][0], max(chosen[-1][1], hi))
+                      else:
+                          chosen.append((lo, hi))
+                  for lo, hi in chosen:
+                      f.write(' [lines %d-%d]\\n' % (lo+1, hi))
+                      for j in range(lo, hi):
+                          f.write('%6d  %s' % (j+1, lines[j]))
+          print('Scanned %d files; matched %d files.' % (len(files), len(hits)))
+          PY
+          echo "===== AUDIT SUMMARY ====="
+          sed -n '1,260p' audit-output/source-internals.txt
+
+      - name: Upload source audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: PanVK-Source-Internals-Audit
+          path: audit-output/source-internals.txt
+          if-no-files-found: error
+          retention-days: 14
