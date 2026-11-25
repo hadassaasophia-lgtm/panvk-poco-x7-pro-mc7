@@ -82,6 +82,39 @@ jobs:
           echo "===== AUDIT SUMMARY ====="
           sed -n '1,260p' audit-output/source-internals.txt
 
+      - name: Package exact runtime source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="source/mali-panvk-main"
+          OUT="audit-output/source-files"
+          mkdir -p "$OUT"
+          files=(
+            src/panfrost/vulkan/panvk_vX_shader.c
+            src/panfrost/vulkan/panvk_vX_precomp_cache.c
+            src/panfrost/vulkan/panvk_precomp_cache.h
+            src/panfrost/vulkan/panvk_wsi.c
+            src/panfrost/vulkan/panvk_wsi.h
+            src/panfrost/vulkan/panvk_android.c
+            src/panfrost/vulkan/panvk_device_memory.c
+            src/panfrost/lib/kmod/kbase_kmod.c
+            src/vulkan/runtime/vk_pipeline_cache.c
+            src/vulkan/runtime/vk_pipeline_cache.h
+            src/vulkan/runtime/vk_pipeline.c
+            src/panfrost/vulkan/csf/panvk_vX_cmd_draw.c
+            src/panfrost/vulkan/csf/panvk_vX_cmd_precomp.c
+          )
+          for file in "${files[@]}"; do
+            if [ -f "$ROOT/$file" ]; then
+              mkdir -p "$OUT/$(dirname "$file")"
+              cp "$ROOT/$file" "$OUT/$file"
+            fi
+          done
+          echo "===== SELECTED FILES ====="
+          find "$OUT" -type f -printf '%P (%s bytes)\\n'
+          echo "===== KEY IMPLEMENTATION SYMBOLS ====="
+          grep -R -n -E 'vk_pipeline_cache|pipeline_cache|compile_nir|compile_shader|AcquireNextImage|QueuePresent|sync_file|AHardwareBuffer|host.?import|memcpy|WaitIdle' "$OUT" || true
+
       - name: Upload source audit report
         uses: actions/upload-artifact@v4
         with:
