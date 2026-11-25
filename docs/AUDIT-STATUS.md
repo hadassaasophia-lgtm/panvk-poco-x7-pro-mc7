@@ -75,3 +75,10 @@ Não substituir bibliotecas Vulkan/GLES de vendor, não alterar partições do s
 **Status: auditoria documental/CI em andamento; compatibilidade real não comprovada.**
 
 Nenhuma correção de código-fonte do PanVK é declarada nesta atualização. Esta nota evita que um build bem-sucedido seja confundido com validação funcional.
+
+## Nova pista: tela preta no caminho de vídeo do BOTW
+
+- A documentação técnica upstream do BOTW Recomp registra um caso Mali-G720 em que o log termina exatamente após `first frame decoded`, descrito como crash na primeira moldura de vídeo na Mali; também registra congelamento em tela preta após a primeira moldura em Xclipse 530. Isso é uma pista de compatibilidade do caminho de vídeo/FFmpeg, não prova de defeito no PanVK.
+- A mesma triagem separa esse sintoma de falhas de GPU/device-lost e de problemas de memória após minutos de jogo. Portanto, não se deve alterar shader, swapchain ou alocação Vulkan sem identificar o último marco do log no nosso caso.
+- O log já fornecido para este aparelho confirma criação do dispositivo Vulkan e da swapchain, mas o trecho termina antes de mostrar o evento exato que antecede a tela preta. Não há evidência suficiente para aplicar uma correção segura no código PanVK.
+- Referência técnica: `mamcjr/BOTWRecompAndroid/docs/BOTW-PORT.md`, triagem de 2026-10-30, família de falhas de vídeo (#93 Mali-G720; #86/#107 Xclipse 530; #113 arquivo de vídeo ausente). A correção precisa ser dirigida ao componente que falha, e não presumida como correção de driver.
