@@ -92,3 +92,14 @@ Nenhuma correção de código-fonte do PanVK é declarada nesta atualização. E
 - A issue é evidência comparativa forte, mas não prova que este binário apresenta o mesmo erro: o log fornecido anteriormente registra criação de swapchain, e ainda não contém o resultado de apresentação nem erro WSI. Não se deve aplicar um ajuste arbitrário de `compositeAlpha`, gralloc ou swapchain sem confirmar o caminho efetivamente usado pelo nosso build.
 - Referência: https://github.com/zenithblue-oss/panvk-kbase-android/issues/16
 - Nenhuma alteração na biblioteca foi feita nesta etapa. A correção precisa atuar na implementação Android WSI compatível com o loader de importação; compilar novamente sem essa correção não resolveria a causa.
+
+
+## Comparação adicional: PanVK Faux123 RP4 Pro
+
+- Foi inspecionado o README público de `faux123/panvk-faux123-driver-rp4pro`. O projeto documenta correções diretamente relevantes ao sintoma de tela preta: integração Android swapchain em que o driver não lia o layout de buffers MediaTek e a apresentação de frames falhava; e uma falha de renderização preta quando uma cena submetia os mesmos comandos mais de uma vez.
+- O README também registra correções de profundidade/culling, temporização de clock da GPU, sincronização/cache e scratch memory. Esses itens são pistas de auditoria; não demonstram que todos sejam aplicáveis ao Mali-G720 MC7 deste aparelho.
+- A partir de v1.0.0, o autor declara um pacote binário comum aos seus quatro dispositivos testados (Mali-G57, G77, G610 e G710), mas o G720 MC7 não está nessa lista. O autor afirma explicitamente que os demais dispositivos não foram testados e não oferece garantia para eles.
+- A receita documentada usa Mesa 26.3.0-devel no commit `5a07217f`, série `zenithblue-oss/panvk-kbase-android` v0.1.0-rc4 (`5b87b74`), 49 patches próprios no histórico inicial e NDK 27.3/API 29. Isso fornece uma referência concreta para comparar a origem e a integração KBASE/Android, mas não autoriza substituir nosso binário pelo pacote RP4 Pro nem transplantar patches sem validar a geração de GPU e a base Mesa.
+- O README informa que os testes foram feitos principalmente no Retroid Pocket 4 Pro com Mali-G77 MC9 e Android 13; não foi validado no POCO X7 Pro. Os testes de tela descritos são cenas Vulkan-Samples, não prova de compatibilidade com todos os jogos.
+- Conclusão de auditoria: priorizar a comparação do tratamento de layout MediaTek/gralloc e do caminho de apresentação Android WSI, além do caso de comandos repetidos que podem produzir renderização preta. Nenhuma correção de código foi aplicada com base apenas no README.
+- Referência: https://github.com/faux123/panvk-faux123-driver-rp4pro
