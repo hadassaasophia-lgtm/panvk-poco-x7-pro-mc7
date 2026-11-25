@@ -164,3 +164,26 @@ Log fornecido pelo usuário para o POCO X7 Pro / MT6899 / Android 16:
 5. Solicitar, para uma análise conclusiva de qualquer falha futura, o trecho do log que inclua o momento exato em que a imagem deixa de aparecer, mensagens de present/fence e encerramento do processo.
 
 **Limite:** esta evidência é de runtime do Faux123 v1.1.8. Não confirma que o pacote PanVK compilado nesta branch contém essas correções nem que a tela preta está corrigida em todos os jogos. Nenhuma alteração de código do driver foi feita com base apenas neste log.
+
+
+## Evidência adicional de runtime: BOTW Recomp — telemetria de frames (2026-11-25)
+
+Trecho de log enviado pelo usuário, aproximadamente 68–228 s de execução:
+
+- A aplicação continuou produzindo atividade Vulkan durante a sessão: contadores de draws, passes, flushes, uploads e framebuffer copies avançam até o fechamento da janela. Isso não comprova, isoladamente, que a imagem estava visualmente correta em todos os momentos.
+- O FPS por intervalo é extremamente irregular: há amostras em torno de 19,6–24,3 FPS, mas também diversas quedas para 0,3–1,1 FPS; picos de frame chegam a 3.587 ms.
+- vk acquire blocked registra bloqueios de 37–317 ms em vários momentos. É um indício direto de espera na aquisição de imagens da swapchain, mas ainda é necessário correlacionar com fences, vkQueuePresentKHR, SurfaceFlinger e o estado da janela para atribuir a causa.
+- vsync timer late aparece com atrasos de 57, 97 e 164 ms, consistente com perda de cadência de apresentação ou atraso de execução.
+- A telemetria registra fbcopy repetidamente (por exemplo, 240 cópias e 7.400 leituras numa amostra) e uploads muito altos (por exemplo, 576,2 MB na mesma amostra). Esses números são relevantes para investigar custo de cópia/largura de banda, mas não devem ser interpretados como bytes por frame sem confirmar a semântica do contador e a duração de cada janela de amostragem.
+- O indicador de kernel no core 0 mostra períodos com 38–67% de ocupação e esperas acumuladas de aproximadamente 5,1–14,5 s por janela de 30 s, com esperas individuais até 1.255 ms. Isso reforça a hipótese de contenção/espera no caminho de execução, mas o significado exato de takes/waited/held depende da instrumentação do app/kernel.
+- O jogo alterna repetidamente o present interval entre 2 e 3. Isso pode produzir cadência irregular, mas o log não prova que a alternância seja a causa primária; pode ser uma reação do frame pacing ao tempo de trabalho variável.
+- O trecho termina com window closed e estatísticas de saída do compilador de shaders. Não há, no trecho fornecido, erro explícito VK_ERROR_DEVICE_LOST, VK_ERROR_OUT_OF_DATE_KHR, VK_ERROR_SURFACE_LOST_KHR ou resultado de vkQueuePresentKHR.
+
+### Direção da investigação
+
+1. Priorizar instrumentação de vkAcquireNextImageKHR/vkQueuePresentKHR, fences/semaphores e latência de apresentação, correlacionando com SurfaceFlinger/ANativeWindow.
+2. Auditar os caminhos de framebuffer copy e upload para identificar cópias CPU desnecessárias ou conversões de formato/stride; não remover cópias necessárias sem validar layout e sincronização.
+3. Investigar contenção no core 0 e alternância de present interval como possíveis fatores de frame pacing, sem atribuir automaticamente o problema ao driver.
+4. Separar otimização de desempenho da correção de tela preta/WSI. O log demonstra degradação severa de desempenho, mas não identifica sozinho a origem nem autoriza uma alteração específica no driver.
+
+**Limite:** o trecho não identifica inequivocamente o nome/versão do ICD carregado. Não atribuir estes números ao build desta branch ou ao Faux123 v1.1.8 sem a linha de inicialização que identifica a biblioteca. O workflow #28 compilou com sucesso o código atualmente empacotado, mas não incluiu uma correção de runtime baseada neste log.
