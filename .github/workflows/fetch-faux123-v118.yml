@@ -1,0 +1,30 @@
+name: Fetch Faux123 v1.1.8 original package
+on:
+  push:
+    branches:
+      - audit/faux123-v1.1.8-g720-mc7
+    paths:
+      - .github/workflows/fetch-faux123-v118.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download official release asset and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/faux123/panvk-faux123-driver-rg556/releases/download/v1.1.8/panvk_faux123_v1.1.8.adpkg.zip"
+          curl --fail --location --retry 3 --retry-all-errors "$url" -o panvk_faux123_v1.1.8.adpkg.zip
+          echo "1898e89be6256e67762876fe249e9017717f8643cc5fb6194cf11195fe6da6c8  panvk_faux123_v1.1.8.adpkg.zip" | sha256sum --check
+          unzip -l panvk_faux123_v1.1.8.adpkg.zip
+      - name: Upload untouched original ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: faux123-v1.1.8-original
+          path: panvk_faux123_v1.1.8.adpkg.zip
+          if-no-files-found: error
+          retention-days: 7
