@@ -32,6 +32,13 @@ Foi inspecionado o projeto público `zenithblue-oss/panvk-kbase-android` como re
 - A documentação desse projeto cita `wonderkast02/panvk-g720-kbase-csf` como referência principal de CSF/G720. Isso é uma referência para auditoria, não prova que nosso código contém as mesmas correções.
 - A versão Faux `panvk_faux123_v1.1.8` tem relatório de testes no POCO X7 Pro / Mali-G720 MC7, mas os testes de recursos Vulkan não comprovam compatibilidade com BOTW Recomp nem eliminam a tela preta.
 
+## Correção de metadados de compatibilidade
+
+- O campo `supported_devices` foi removido de `meta.json`, pois não há validação em aparelho real que justifique declarar o POCO X7 Pro como dispositivo suportado.
+- O alvo agora é registrado em `target_devices`, com estado explícito `experimental_unverified`.
+- `scripts/validate_project.py` foi atualizado para exigir esses campos e impedir que uma futura alteração volte a declarar suporte sem mudar conscientemente o critério.
+- Essa mudança corrige a precisão dos metadados; não modifica a biblioteca Vulkan nem resolve a tela preta.
+
 ## Melhorias automatizadas adicionadas nesta branch
 
 - Foi adicionado `scripts/validate_project.py` para validar os campos do perfil e do `meta.json`, testar o CRC do ZIP, rejeitar caminhos inseguros/duplicados e confirmar os pontos de entrada `build.sh` e `meson.build` antes da extração.
