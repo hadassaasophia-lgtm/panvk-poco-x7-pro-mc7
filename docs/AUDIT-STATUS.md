@@ -21,6 +21,13 @@ Dados fornecidos pelo proprietário do aparelho e registrados no perfil do proje
 - O perfil do dispositivo declara o alvo G720 MC7 / GPU ID `0xc8700010`.
 - O README anterior marcava integração de fonte, patches, compilação, testes e ZIP final como pendentes.
 
+## Melhorias automatizadas adicionadas nesta branch
+
+- Foi adicionado `scripts/validate_project.py` para validar os campos do perfil e do `meta.json`, testar o CRC do ZIP, rejeitar caminhos inseguros/duplicados e confirmar os pontos de entrada `build.sh` e `meson.build` antes da extração.
+- O workflow chama essa validação antes de extrair o código-fonte.
+- O workflow também foi configurado para tentar executar em atualizações desta branch, além do acionamento manual.
+- A execução dessa nova versão ainda não foi confirmada; a alteração por si só não comprova compilação nem compatibilidade.
+
 ## Limites importantes
 
 1. A compilação do workflow não é um teste de execução no POCO X7 Pro.
