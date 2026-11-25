@@ -128,3 +128,11 @@ Nenhuma correção de código-fonte do PanVK é declarada nesta atualização. E
 - Decisão: não aplicar 015/016/017 automaticamente. O patch 015 altera stubs de hardware/linkagem e é uma dependência de build, não uma correção isolada da apresentação. A implementação Android WSI precisa ser adaptada à base Mesa incluída e usar import/export AHB, sincronização/fences e apresentação sem cópia CPU/DeviceWaitIdle por frame; em paralelo, auditar a compatibilidade MediaTek gralloc/layout indicada pelo relato do mesmo aparelho.
 - Próxima validação necessária: testes de loader/surface/swapchain/present em Android real, incluindo ciclo de vida e pelo menos centenas de apresentações, seguidos de teste em jogos. Nenhuma correção de tela preta está declarada concluída até esses testes.
 - Referências: https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/patches/wsi/016-android-surface-swapchain.patch e https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/patches/wsi/017-android-swapchain-owned-ahb.patch
+
+
+## Varredura pública Faux123
+
+- Auditoria dos quatro repositórios PanVK do perfil Faux123, releases, issues, comentários, relatórios FauxVkDB e relatos públicos concluída em 2026-11-25.
+- Relatório detalhado: [docs/FAUX123-PANVK-ECOSYSTEM-SCAN.md](FAUX123-PANVK-ECOSYSTEM-SCAN.md).
+- Achado principal: há validação FauxVkDB v1.1.8 no POCO X7 Pro/Mali-G720 MC7 (72 checks aprovados), mas também há relatos de tela preta em jogos específicos no mesmo aparelho. A série própria de patches Faux123 está em repositório companheiro privado; não é possível baixar os 149 patches a partir dos repositórios públicos.
+- Nenhuma biblioteca ou patch foi transplantado nesta etapa. O relatório orienta a próxima auditoria de Android WSI/AHB/gralloc, FP16 e ownership de present extensions.
