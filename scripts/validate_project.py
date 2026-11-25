@@ -42,8 +42,10 @@ def main():
         fail("meta.json must identify libvulkan_panfrost.so")
     if meta.get("gpu") != EXPECTED["gpu"]:
         fail("meta.json GPU does not match the POCO X7 Pro profile")
-    if "POCO X7 Pro" not in meta.get("supported_devices", []):
-        fail("meta.json does not list POCO X7 Pro as a supported target")
+    if "POCO X7 Pro" not in meta.get("target_devices", []):
+        fail("meta.json does not identify POCO X7 Pro as an experimental target")
+    if meta.get("status") != "experimental_unverified":
+        fail("meta.json must retain the experimental_unverified status")
 
     try:
         archive = zipfile.ZipFile(args.archive)
@@ -73,7 +75,7 @@ def main():
             fail("source ZIP is missing required project files: " + ", ".join(missing))
 
     print("INPUT VALIDATION PASSED")
-    print(f"Target: {EXPECTED['gpu']} / {EXPECTED['gpu_id']}")
+    print(f"Experimental target: {EXPECTED['gpu']} / {EXPECTED['gpu_id']}")
     print("Source ZIP: CRC valid; expected build entry points present")
     print("Note: this validates inputs only; it does not prove GPU runtime compatibility.")
 
