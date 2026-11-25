@@ -117,3 +117,23 @@ Prioridade de investigação atual:
 - Status Mali v11 e evidência do mapper/SELinux: https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/docs/universal/v11/README.md
 - Patch experimental mapper neutro: https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/patches/android/014-vendor-neutral-gralloc-mapper-and-hidl-mapper4.patch
 - Plano de apresentação Android zero-copy: https://github.com/zenithblue-oss/panvk-kbase-android/blob/cf70e02b918e1864cbcd746a7fefa57b96c673ce/docs/plans/PANVK_GAME_LAUNCHER.md
+
+
+## Comparação FauxVkDB: driver stock do POCO X7 Pro vs Faux123 v1.1.8 (25 nov 2026)
+
+Link recebido: https://fauxvkdb.canonspike.com/gpu/13b5-c8700010/1b5c21261f48a716
+
+- A página aponta o driver stock Mali-G720 MC7 r49p1, não um build Faux123. O relatório #2854 é do POCO X7 Pro, MT6899, 2412DPC0AG, Android 16, recebido em 2026-11-19.
+- Stock: 59/60 verificações; única falha core.compat.texel_buffer_type_punning. O teste mostra leituras R32_UINT/R32_SINT/R32G32B32A32_UINT reinterpretadas como float retornando o valor numérico convertido, em vez dos bits armazenados (ex.: esperado 0x00050010/327696; obtido 1218445824). Isso corresponde à classe de bug que Faux123 v1.1.8 anuncia corrigir.
+- O teste de desenho básico e vários testes de renderização, memória, sincronização, compute, MSAA, pipeline cache e stress passaram no stock. Isto demonstra que o stock não é globalmente incapaz de renderizar, mas não prova que todos os jogos/WSI funcionam.
+- A página de comparação stock vs Faux123 v1.1.8 mostra 59 -> 72 checks validados (+13), 0 checks validados apenas no stock, e texel_buffer_type_punning passa no Faux123. O conjunto de extensões cresce de 150 para 188 (+53/-15).
+- A comparação de velocidade reporta média geométrica global ~1% a favor do Faux123, com 3 cenas mais rápidas e 2 mais lentas. Por cena: compute_nbody 12% mais lento; HDR 2160p 4% mais rápido; OIT 3% mais lento; pipeline barriers 2160p 7% mais rápido; subpasses 2160p 9% mais rápido. A própria página avisa que os modelos de aparelhos não são os mesmos entre os relatórios, clocks desconhecidos e cenas paced não são comparáveis; portanto não é promessa de ganho no POCO X7 Pro.
+- A comparação encontra divergência visual localizada em pipeline_barriers (1636/2304 células diferem no grid fino) e OIT não iniciou em todas as tentativas stock (2/3 vs Faux 3/3). Não tratar como validação perfeita.
+- O perfil FauxVkDB ainda estima Switch e DX9-DX12 como “maybe” para esse driver, por recursos ausentes (multiViewport, fillModeNonSolid, clip/cull distance, vertexPipelineStoresAndAtomics etc.). A página diz explicitamente que a estimativa não garante que jogos iniciem.
+
+Conclusão para nosso projeto: esse dado confirma que o stock no mesmo modelo do usuário tem exatamente a falha de texel-buffer que Faux123 v1.1.8 corrigiu, então esse fix é um port de alta prioridade e com evidência específica de G720. Mas ele não explica sozinho a tela preta em todos os jogos: o relatório stock não é um teste completo de Android surface/swapchain lifecycle, e o FauxVkDB separa esses recursos. Manter gralloc/mapper, formato do buffer e Android WSI/fences como investigação independente.
+
+Fontes:
+- Stock POCO X7 Pro report #2854: https://fauxvkdb.canonspike.com/report/2854
+- Comparação stock vs Faux123 v1.1.8: https://fauxvkdb.canonspike.com/compare/13b5-c8700010/1b5c21261f48a716/499e3eae32a27340
+- Matriz Mali-G720 MC7: https://fauxvkdb.canonspike.com/gpu/13b5-c8700010/1b5c21261f48a716
