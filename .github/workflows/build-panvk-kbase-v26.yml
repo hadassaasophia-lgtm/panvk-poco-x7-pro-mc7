@@ -80,7 +80,7 @@ jobs:
           set -euo pipefail
           ./scripts/apply-patches.sh --profile g720-v12-csf --mesa work/mesa
           echo "===== APPLY PINNED G720 CSF REGISTER-COUNT FIX ====="
-          G720_PATCH="../patches/csf/0001-g720-csf-register-count.patch"
+          G720_PATCH="$GITHUB_WORKSPACE/patches/csf/0001-g720-csf-register-count.patch"
           test -s "$G720_PATCH"
           git -C work/mesa apply --check "$G720_PATCH"
           git -C work/mesa apply "$G720_PATCH"
