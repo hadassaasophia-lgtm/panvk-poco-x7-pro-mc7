@@ -25,6 +25,8 @@ jobs:
           unzip -q mali-panvk-main.zip -d source
           ROOT="source/mali-panvk-main"
           test -d "$ROOT/src"
+          echo "===== CHECK DA CORREÇÃO CANDIDATA ====="
+          patch --dry-run -d "$ROOT" -p1 < patches/android/001-defer-kbase-acquire-fence.patch
           python3 - "$ROOT" audit-output/source-internals.txt <<'PY'
           import os, re, sys
           root, out = sys.argv[1:]
