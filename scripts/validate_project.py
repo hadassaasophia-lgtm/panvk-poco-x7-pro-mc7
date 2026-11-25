@@ -2,7 +2,6 @@
 """Fail-fast validation of the PanVK project inputs before extraction/build."""
 import argparse
 import json
-import sys
 import zipfile
 from pathlib import PurePosixPath
 
