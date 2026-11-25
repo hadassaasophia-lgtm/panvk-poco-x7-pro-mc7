@@ -80,6 +80,8 @@ jobs:
           test -s "$G720_PATCH"
           git -C work/mesa apply --check "$G720_PATCH"
           git -C work/mesa apply "$G720_PATCH"
+          mkdir -p patches/csf
+          cp "$G720_PATCH" patches/csf/0001-g720-csf-register-count.patch
           grep -n -A4 -B3 "cs_reg_count = (stream_features" work/mesa/src/panfrost/lib/kmod/kbase_kmod.c
           grep -n -A4 -B2 "nr_kernel_registers" work/mesa/src/panfrost/vulkan/csf/panvk_vX_gpu_queue.c
           SERIES="$(python3 scripts/compute-patch-series-id.py --profile g720-v12-csf)"
