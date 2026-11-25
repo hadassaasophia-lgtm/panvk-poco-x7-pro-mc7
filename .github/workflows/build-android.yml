@@ -43,6 +43,45 @@ jobs:
           test -f source/mali-panvk-main/build.sh
           echo "Código-fonte extraído com sucesso."
 
+      - name: Diagnosticar WSI Android e testar compatibilidade do patch
+        run: |
+          set -e
+          SOURCE="source/mali-panvk-main"
+          echo "===== IMPLEMENTAÇÃO ANDROID WSI NO CÓDIGO-FONTE ====="
+          for term in \
+            "VK_USE_PLATFORM_ANDROID_KHR" \
+            "VK_KHR_android_surface" \
+            "panvk_CreateAndroidSurfaceKHR" \
+            "VK_ICD_WSI_PLATFORM_ANDROID" \
+            "ANativeWindow_lock" \
+            "ANativeWindow_unlockAndPost"
+          do
+            echo "----- $term -----"
+            grep -R -n -F "$term" "$SOURCE/src/panfrost" "$SOURCE/src/vulkan" \
+              --include='*.c' --include='*.h' || true
+          done
+
+          echo "===== WSI PANVK ATUAL ====="
+          if [ -f "$SOURCE/src/panfrost/vulkan/panvk_wsi.c" ]; then
+            sed -n '1,240p' "$SOURCE/src/panfrost/vulkan/panvk_wsi.c"
+          fi
+
+          echo "===== TESTE DE APLICABILIDADE DA REFERÊNCIA ANDROID WSI ====="
+          REF="https://raw.githubusercontent.com/zenithblue-oss/panvk-kbase-android/cf70e02b918e1864cbcd746a7fefa57b96c673ce/patches"
+          mkdir -p "$RUNNER_TEMP/wsi-reference"
+          curl -fL --retry 3 "$REF/kbase-common/006-device-queue-wsi-kbase.patch" -o "$RUNNER_TEMP/wsi-reference/006.patch"
+          curl -fL --retry 3 "$REF/android/015-android-stub-static-hardware.patch" -o "$RUNNER_TEMP/wsi-reference/015.patch"
+          curl -fL --retry 3 "$REF/wsi/016-android-surface-swapchain.patch" -o "$RUNNER_TEMP/wsi-reference/016.patch"
+          for patch in 006 015 016; do
+            echo "----- PATCH $patch: git apply --check -----"
+            if git -C "$SOURCE" apply --check "$RUNNER_TEMP/wsi-reference/$patch.patch"; then
+              echo "PATCH $patch APLICÁVEL SEM ALTERAR A ÁRVORE"
+            else
+              echo "PATCH $patch NÃO APLICÁVEL DIRETAMENTE; não será aplicado automaticamente"
+            fi
+          done
+          echo "DIAGNÓSTICO WSI CONCLUÍDO; nenhuma alteração experimental foi aplicada."
+          
       - name: Instalar LLVM 21 e tradutor SPIR-V
         run: |
           wget -qO llvm.sh https://apt.llvm.org/llvm.sh
