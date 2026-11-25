@@ -42,3 +42,25 @@ Isso **não** demonstra que a release funciona no POCO X7 Pro, nem que será mai
 ## Critério para avançar
 
 Não publicar a migração como pacote recomendado enquanto não houver build reproduzível e teste de inicialização/apresentação no aparelho. Se a integração não puder ser reproduzida a partir dos arquivos públicos, registrar o bloqueio em vez de substituir silenciosamente a fonte atual.
+
+## Auditoria inicial da release upstream
+
+Arquivos consultados diretamente no tag fixo `panvk-kbase-v26.3.1`:
+
+- `sources.lock`: fixa Mesa em `5a07217f034b3e50d8c7c7794f97a2df1742613b`, versão `26.3.0-devel), e identifica a série por `sha256:374b7b830111a848515d3e0ec41a60b902bc57938deb420ecea7de8a03f58ecd`.
+- `patches/README.md`: define famílias separadas para Android, KBASE, CSF por arquitetura, loader ICD e WSI; exige falha rígida em qualquer patch que não aplique exatamente.
+- `scripts/apply-patches.sh`: para CSF, seleciona `common android kbase-common app-loader wsi csf csf-v12` quando o perfil declara arquitetura 12.
+- `profiles/g720-v12-csf.json`: declara Mali-G720, arquitetura 12 e frontend CSF, mas seu status literal é **planned P24**, não validado no POCO X7 Pro.
+- `.github/workflows/build.yml`: o CI upstream mostrado no tag executa validação de fonte e aplicabilidade para o perfil G615; não é evidência de build/teste G720.
+
+### Consequência para nossa migração
+
+A release fornece uma série pública e rastreável, mas o perfil G720 ainda é planejado. Portanto, não devemos usar o artefato da release como se fosse um binário G720 pronto. O trabalho correto é aplicar e auditar especificamente as famílias CSF v12 e Android/WSI, verificar cada patch sem offsets/fuzz e revisar o perfil antes de compilar.
+
+A árvore upstream contém ainda patches Android WSI e KBASE de sincronização/memória que parecem diretamente relevantes, mas sua presença no repositório não significa que todos estejam incluídos no perfil G720 nem que funcionem no MT6899. A seleção efetiva deve seguir o script de aplicação e o manifesto da release.
+
+Links fixos:
+- https://github.com/zenithblue-oss/panvk-kbase-android/blob/panvk-kbase-v26.3.1/sources.lock
+- https://github.com/zenithblue-oss/panvk-kbase-android/blob/panvk-kbase-v26.3.1/profiles/g720-v12-csf.json
+- https://github.com/zenithblue-oss/panvk-kbase-android/blob/panvk-kbase-v26.3.1/scripts/apply-patches.sh
+- https://github.com/zenithblue-oss/panvk-kbase-android/blob/panvk-kbase-v26.3.1/patches/README.md
