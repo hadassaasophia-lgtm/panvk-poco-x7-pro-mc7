@@ -303,3 +303,12 @@ O proprietário confirmou que, durante a tela preta, o BOTW continua executando:
 - https://github.com/zenithblue-oss/panvk-kbase-android/issues/16
 - https://github.com/faux123/panvk-faux123-driver-rp4pro
 - https://github.com/faux123/panvk-faux123-driver-rg556/releases
+
+
+### Relatos adicionais de tela preta com áudio no ecossistema PanVK
+
+- Foi localizado o relato público `zenithblue-oss/panvk-kbase-android#60`: jogos Xbox 360 em Mali PanVK no Android 16 mantêm áudio ativo enquanto a imagem permanece preta. O hardware desse relato é Immortalis-G715 MC11, portanto não é uma reprodução do POCO X7 Pro, mas confirma que o sintoma "áudio continua, sem imagem" também aparece em outras combinações PanVK/emulador.
+- Esse relato não fornece evidência suficiente para apontar WSI, shader ou importação de buffer como causa. Ele deve ser tratado como sintoma comparável, não como diagnóstico.
+- Em conjunto com a issue #16 (mesmo POCO X7 Pro/G720 MC7, com falha explícita de criação de swapchain em outro pacote), a prioridade permanece instrumentar cada estágio: criação de surface/swapchain, acquire, submit, release fence e present. Não basta observar que o dispositivo Vulkan foi criado ou que submissões ocorreram.
+
+Referência adicional: https://github.com/zenithblue-oss/panvk-kbase-android/issues/60
