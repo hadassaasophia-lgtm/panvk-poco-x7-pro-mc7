@@ -245,7 +245,7 @@ jobs:
           do
             echo "----- Procurando: $term -----"
 
-            if grep -R -n -i -E "$term" "$SOURCE_DIR" \
+            grep -R -n -i -E "$term" "$SOURCE_DIR" \
               --include='*.c' \
               --include='*.h' \
               --include='*.cpp' \
@@ -253,7 +253,10 @@ jobs:
               --include='*.xml' \
               --include='*.json' \
               --include='*.py' \
-              | head -n 20; then
+              > "$RUNNER_TEMP/search-results.txt" || true
+
+            if [ -s "$RUNNER_TEMP/search-results.txt" ]; then
+              sed -n '1,20p' "$RUNNER_TEMP/search-results.txt"
               echo "Referências encontradas para: $term"
             else
               echo "Nenhuma referência textual encontrada para: $term"
@@ -261,6 +264,84 @@ jobs:
           done
 
           echo "ANÁLISE DE REFERÊNCIAS CONCLUÍDA"
+
+      - name: Auditoria específica Mali G720 MC7
+        run: |
+          set -e
+
+          SOURCE="source/mali-panvk-main"
+
+          echo "===== IDENTIFICAÇÃO G720 ====="
+          grep -n -i -C 5 "G720" \
+            "$SOURCE/src/panfrost/model/pan_model.c" || true
+
+          echo "===== IDENTIFICAÇÃO DO GPU ID ====="
+
+          grep -R -n -i -E \
+            '0xc870|0xc8[0-9a-f]{2}|PAN_PROD_ID|gpu_id' \
+            "$SOURCE/src/panfrost/model" \
+            "$SOURCE/src/panfrost/lib" \
+            --include='*.c' --include='*.h' \
+            > "$RUNNER_TEMP/gpu-id-results.txt" || true
+
+          sed -n '1,100p' "$RUNNER_TEMP/gpu-id-results.txt"
+
+          echo "===== IMPLEMENTAÇÃO KBASE E CSF ====="
+
+          find "$SOURCE/src/panfrost" \
+            -type f \( -iname '*kbase*' -o -iname '*csf*' \) \
+            ! -path '*/build-*/*' -print
+
+          grep -R -n -i -E 'kbase|CSF' \
+            "$SOURCE/src/panfrost/lib" \
+            "$SOURCE/src/panfrost/vulkan" \
+            --include='*.c' --include='*.h' \
+            > "$RUNNER_TEMP/kbase-csf-results.txt" || true
+
+          sed -n '1,100p' "$RUNNER_TEMP/kbase-csf-results.txt"
+
+          echo "===== CONFIGURAÇÃO DE COMPILAÇÃO ====="
+
+          sed -n '1,240p' "$SOURCE/build.sh"
+
+          echo "===== ALVOS DE COMPILAÇÃO MESON ====="
+
+          python3 - "$SOURCE/build-android/meson-info/intro-targets.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as f:
+              targets = json.load(f)
+
+          for target in targets:
+              name = target.get("name", "")
+              sources = target.get("target_sources", [])
+              text = json.dumps(sources).lower()
+
+              if any(term in (name + text).lower()
+                     for term in ("panvk", "panfrost", "kbase", "csf")):
+                  print("ALVO:", name)
+                  print("FONTES:", text[:2500])
+          PY
+
+          echo "===== OPÇÕES MESON RELEVANTES ====="
+
+          python3 - "$SOURCE/build-android/meson-info/intro-buildoptions.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as f:
+              options = json.load(f)
+
+          for option in options:
+              name = option.get("name", "")
+              if any(term in name.lower() for term in
+                     ("android", "platform", "vulkan", "panvk",
+                      "arch", "api", "prefix", "libdir")):
+                  print(name, "=", option.get("value"))
+          PY
+
+          echo "AUDITORIA ESPECÍFICA CONCLUÍDA"
 
       - name: Disponibilizar ZIP compilado
         uses: actions/upload-artifact@v4
