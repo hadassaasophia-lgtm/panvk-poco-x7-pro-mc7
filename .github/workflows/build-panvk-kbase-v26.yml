@@ -43,6 +43,25 @@ jobs:
           sudo apt-get install -y llvm-21-dev libclang-21-dev clang-21 libclc-21-dev
           python3 -m pip install --break-system-packages "meson>=1.4.0" mako packaging pyyaml
 
+      - name: Build matching SPIRV-LLVM-Translator for LLVM 21
+        run: |
+          set -euo pipefail
+          git clone https://github.com/KhronosGroup/SPIRV-LLVM-Translator.git "$RUNNER_TEMP/SPIRV-LLVM-Translator"
+          git -C "$RUNNER_TEMP/SPIRV-LLVM-Translator" checkout --detach v21.1.8
+          TRANSLATOR_SHA="$(git -C "$RUNNER_TEMP/SPIRV-LLVM-Translator" rev-parse HEAD)"
+          test "$TRANSLATOR_SHA" = "0b421acdd1dc8cc7e4d1a436e65511d7784ce522"
+          cmake -S "$RUNNER_TEMP/SPIRV-LLVM-Translator" -B "$RUNNER_TEMP/SPIRV-LLVM-Translator/build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DLLVM_DIR=/usr/lib/llvm-21/lib/cmake/llvm \
+            -DLLVM_SPIRV_INCLUDE_TESTS=OFF \
+            -DBUILD_SHARED_LIBS=ON
+          cmake --build "$RUNNER_TEMP/SPIRV-LLVM-Translator/build" --parallel 2
+          sudo cmake --install "$RUNNER_TEMP/SPIRV-LLVM-Translator/build"
+          sudo ldconfig
+          pkg-config --modversion LLVMSPIRVLib
+          echo "SPIRV_TRANSLATOR_SHA=$TRANSLATOR_SHA" >> "$GITHUB_ENV"
+
       - name: Download Android NDK r29
         run: |
           cd "$RUNNER_TEMP"
@@ -129,7 +148,7 @@ jobs:
             "architecture":"Mali v12 CSF",
             "status":"experimental_unverified"
           }
-          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\n")
+          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\\n")
           PY
           (cd "$STAGE" && sha256sum libvulkan_panfrost.so > SHA256SUMS.txt)
           python3 - "$STAGE/SOURCE.json" <<'PY'
@@ -140,10 +159,11 @@ jobs:
             "upstreamTagCommit":os.environ["UPSTREAM_TAG_SHA"],
             "mesaCommit":os.environ["MESA_COMMIT"],
             "patchSeriesId":os.environ["PATCH_SERIES_ID"],
+            "spirvTranslatorCommit":os.environ["SPIRV_TRANSLATOR_SHA"],
             "profile":"g720-v12-csf",
             "deviceValidation":"not_performed"
           }
-          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\n")
+          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\\n")
           PY
           (cd "$STAGE" && zip -q ../panvk_poco_x7_pro_mc7_v26.3.1.adpkg.zip \
             libvulkan_panfrost.so meta.json NOTICE.txt SHA256SUMS.txt SOURCE.json)
