@@ -83,3 +83,25 @@ Execução iniciada pelo push:
 Uma correção de empacotamento (uso do NOTICE.md do upstream e newline válido nos JSON) foi aplicada depois que essa primeira execução começou. Portanto, se a primeira execução alcançar a etapa de empacotamento, ela pode refletir a versão inicial do workflow; a revisão atual na branch contém a correção e deverá ser usada em uma execução posterior se necessário.
 
 **Importante:** este pipeline não inventa patches CSF v12 ausentes. O resultado, se compilar, será apenas um candidato experimental para teste controlado; não prova suporte ao MC7 nem resolve a tela preta por si só.
+
+
+## Correção G720 CSF incorporada ao pipeline (2026-11-25)
+
+A auditoria do repositório de referência fixado em `wonderkast02/panvk-g720-kbase-csf@d9cbb91e5df720f0a62c4b5010d96c327aec315f` encontrou uma correção específica de contagem de registradores CSF para G720:
+
+- `cs_reg_count` passa a ser derivado de `(stream_features & 0xff) + 1`, em vez de assumir 96.
+- `nr_kernel_registers` passa a usar `MAX2(csif_info->unpreserved_cs_reg_count, 4)`.
+
+A correção foi adicionada localmente em `patches/csf/0001-g720-csf-register-count.patch` e o workflow agora:
+1. aplica a série comum da release v26.3.1;
+2. verifica o patch G720 com `git apply --check`;
+3. aplica o patch G720;
+4. copia o patch para a árvore upstream antes de calcular `patchSeriesId`, para que a proveniência inclua esse delta.
+
+Referência pública do patch original:
+https://github.com/wonderkast02/panvk-g720-kbase-csf/blob/d9cbb91e5df720f0a62c4b5010d96c327aec315f/patches/0001-panvk-kbase-g720-register-count.patch
+
+**Limite da evidência:** o README da referência relata validações em Mali-G720 MC8, não especificamente no MC7 do POCO X7 Pro. O patch é pertinente à arquitetura G720, mas ainda precisa passar pela aplicação limpa no Mesa 26.3.0-devel e pelo teste real neste aparelho.
+
+CI disparado pelo push: https://github.com/hadassaasophia-lgtm/panvk-poco-x7-pro-mc7/actions/runs/45602486853
+Estado no último acompanhamento: execução em andamento; nenhum binário validado ou artefato disponível ainda.
