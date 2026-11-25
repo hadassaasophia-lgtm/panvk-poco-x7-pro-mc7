@@ -204,20 +204,25 @@ jobs:
           nm -D --defined-only "$LIBRARY" \
             | tee "$RUNNER_TEMP/panvk-check/exported-symbols.txt"
 
-          echo "===== FUNÇÕES DE ENTRADA VULKAN ====="
+          echo "===== INTERFACE ICD VULKAN ====="
 
-          grep -E \
-            'vkGetInstanceProcAddr|vk_icdGetInstanceProcAddr|vk_icdGetPhysicalDeviceProcAddr|vkCreateInstance|vkEnumerateInstanceExtensionProperties' \
-            "$RUNNER_TEMP/panvk-check/exported-symbols.txt" \
-            || true
+          for symbol in \
+            vk_icdGetInstanceProcAddr \
+            vk_icdGetPhysicalDeviceProcAddr \
+            vk_icdNegotiateLoaderICDInterfaceVersion
+          do
+            if grep -q "$symbol" \
+              "$RUNNER_TEMP/panvk-check/exported-symbols.txt"; then
+              echo "ENCONTRADO: $symbol"
+            else
+              echo "AUSENTE: $symbol"
+            fi
+          done
 
-          if ! grep -q 'vkGetInstanceProcAddr' \
-            "$RUNNER_TEMP/panvk-check/exported-symbols.txt"; then
-            echo "ERRO: vkGetInstanceProcAddr não foi encontrado."
-            exit 1
-          fi
+          grep -q 'vk_icdGetInstanceProcAddr' \
+            "$RUNNER_TEMP/panvk-check/exported-symbols.txt"
 
-          echo "FUNÇÃO vkGetInstanceProcAddr ENCONTRADA"
+          echo "INTERFACE ICD PRINCIPAL CONFIRMADA"
 
           echo "===== CONTAGEM DE SÍMBOLOS ====="
           wc -l "$RUNNER_TEMP/panvk-check/exported-symbols.txt"
