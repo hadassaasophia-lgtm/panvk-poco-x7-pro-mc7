@@ -274,3 +274,32 @@ A leitura dos arquivos completos confirma alguns detalhes que não apareciam no 
 - O caminho de importação AHardwareBuffer duplica o dma-buf e usa `VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT`; o código consulta os requisitos de memória e corrige o tipo de memória para um tipo compatível. Isso não comprova que o caminho host import está habilitado para heap global de shaders.
 
 **Ação segura:** não alterar o poll de fence nem o provider sync até mapear as chamadas entre `vkAcquireNextImageKHR`, `vkAcquireImageANDROID`, importação de semaphore fd e submissão KBASE. Uma mudança prematura pode converter um atraso visível em corrupção de buffer ou tela preta.
+
+
+## Nova confirmação do sintoma: execução headless com áudio/controles (2026-11-25)
+
+O proprietário confirmou que, durante a tela preta, o BOTW continua executando: há áudio e os controles respondem, mas nenhum quadro é visível. Isso caracteriza falha de saída/renderização visível, não um travamento total do processo.
+
+### Correlação técnica e limites
+
+- O relatório público `zenithblue-oss/panvk-kbase-android#16` documenta o mesmo modelo `2412DPC0AG / rodin`, Mali-G720 MC7, Android 16 e importação via AdrenoTools. Nesse caso específico, o dispositivo Vulkan e as submissões funcionam, mas `vkCreateSwapchainKHR` retorna `VK_ERROR_INCOMPATIBLE_DISPLAY_KHR`; o relato também registra ausência de gralloc hwmodule e fallback de Gralloc.
+- Esse caso confirma que a combinação aparelho + loader + Android WSI/gralloc pode produzir execução sem imagem. Entretanto, nosso log anterior registra criação da swapchain; portanto, não é correto atribuir automaticamente a mesma falha de criação ao nosso caso. Precisamos distinguir criação da swapchain, aquisição, submissão e apresentação efetiva.
+- O README público Faux123 RP4 Pro documenta dois defeitos historicamente corrigidos no seu caminho Android: leitura incorreta do layout de buffers MediaTek que impedia apresentar frames e uma cena que renderizava preta quando comandos idênticos eram submetidos mais de uma vez. São áreas de comparação de código, não prova de que a RC10 contém regressão equivalente.
+- A release pública v1.1.8 continua sendo a última release estável visível no repositório RG556 consultado; não foi localizada uma release/tag pública `v1.1.9-rc10` nessa fonte. A RC10 é identificada pelo log do proprietário, mas seu pacote e diff de código não estão publicamente disponíveis nesta auditoria.
+- O relatório do proprietário sobre swapchain mostra fallback linear forçado no buffer apresentado (modifier zero) e render targets internos com outros modifiers. Isso exige preservar a distinção: não forçar layout/modifier em todos os recursos.
+- O fato de áudio/controles continuarem ativos é compatível com falha de apresentação ou renderização, mas não identifica sozinho qual estágio falhou.
+
+### Próxima trilha de investigação (sem alteração especulativa)
+
+1. Rastrear no código Android WSI os resultados de `vkAcquireNextImageKHR`, `vkQueueSubmit` e `vkQueuePresentKHR`, incluindo native fences e lifecycle de ANativeWindow.
+2. Comparar seleção de layout MediaTek/Gralloc e fallback quando o HAL não está visível ao processo do app.
+3. Comparar os fixes Faux123 documentados para layout de buffers MediaTek e comandos repetidos/renderização preta.
+4. Verificar a diferença real entre v1.1.8 e RC10 somente quando o artefato ou diff da RC10 estiver disponível; não inventar um diff com base apenas no número da versão.
+5. Não aplicar o patch experimental `001-defer-kbase-acquire-fence.patch`, não remover o poll de native fence e não usar cópia CPU/DeviceWaitIdle por frame. Essas mudanças podem causar corrupção de buffer, tela preta ou queda grave de FPS.
+6. Manter v1.1.8 como referência de recuperação quando comprovadamente funcional no aparelho. Nenhum build ou teste em dispositivo foi executado nesta etapa.
+
+### Fontes públicas consultadas
+
+- https://github.com/zenithblue-oss/panvk-kbase-android/issues/16
+- https://github.com/faux123/panvk-faux123-driver-rp4pro
+- https://github.com/faux123/panvk-faux123-driver-rg556/releases
