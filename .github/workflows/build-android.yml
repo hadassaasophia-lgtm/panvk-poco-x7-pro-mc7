@@ -157,9 +157,47 @@ jobs:
             ls -lh "$library"
           done
 
-          echo "=================================="
           echo "VERIFICAÇÃO DE ARQUITETURA CONCLUÍDA"
-          echo "=================================="
+
+      - name: Analisar metadados e licenças
+        run: |
+          set -e
+
+          PACKAGE_DIR="$RUNNER_TEMP/panvk-check/mali-panvk-27.0.0-devel"
+
+          echo "===== METADADOS DO DRIVER ====="
+          test -f "$PACKAGE_DIR/meta.json"
+          cat "$PACKAGE_DIR/meta.json"
+
+          echo "===== VALIDAR IDENTIFICAÇÃO ====="
+          python3 - "$PACKAGE_DIR/meta.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as f:
+              data = json.load(f)
+
+          required = ["name", "driverVersion", "minApi", "libraryName"]
+
+          for key in required:
+              if key not in data:
+                  raise SystemExit(f"ERRO: campo ausente: {key}")
+              print(f"{key}: {data[key]}")
+
+          if data["libraryName"] != "libvulkan_panfrost.so":
+              raise SystemExit("ERRO: biblioteca inesperada")
+
+          print("METADADOS JSON: VÁLIDOS")
+          PY
+
+          echo "===== AVISOS E LICENÇAS ====="
+          test -f "$PACKAGE_DIR/NOTICE.txt"
+          head -n 100 "$PACKAGE_DIR/NOTICE.txt"
+
+          echo "===== CONTEÚDO DO PACOTE ====="
+          find "$PACKAGE_DIR" -maxdepth 2 -type f -printf '%P (%s bytes)\n'
+
+          echo "ANÁLISE DO PACOTE CONCLUÍDA"
 
       - name: Disponibilizar ZIP compilado
         uses: actions/upload-artifact@v4
