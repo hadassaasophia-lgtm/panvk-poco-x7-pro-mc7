@@ -312,3 +312,12 @@ O proprietário confirmou que, durante a tela preta, o BOTW continua executando:
 - Em conjunto com a issue #16 (mesmo POCO X7 Pro/G720 MC7, com falha explícita de criação de swapchain em outro pacote), a prioridade permanece instrumentar cada estágio: criação de surface/swapchain, acquire, submit, release fence e present. Não basta observar que o dispositivo Vulkan foi criado ou que submissões ocorreram.
 
 Referência adicional: https://github.com/zenithblue-oss/panvk-kbase-android/issues/60
+
+
+## Atualização de investigação — formato MediaTek e tela preta (2026-11-25)
+
+A comparação das notas oficiais Faux123 esclareceu que `linear-forced 1` no buffer de swapchain pode ser a escolha intencional do formato plain para displays MediaTek; não deve ser removido sem evidência. A v1.1.5 documenta a correção de formato de framebuffer para MTK/G720, e a v1.1.7 documenta uma correção distinta para cenas 3D pretas por NaN em conversão FP16. A v1.1.8 inclui ambas as correções históricas, mas isso não prova que o episódio atual tenha a mesma causa. A RC10 aparece no log do usuário, porém não foi localizada como release/tag público nos repositórios Faux123 RG556 e RP4 Pro consultados.
+
+Relatório detalhado: [docs/BLACK-SCREEN-AND-PRESENT-PATH.md](BLACK-SCREEN-AND-PRESENT-PATH.md).
+
+Nenhum patch de runtime foi aplicado; a próxima etapa continua sendo distinguir acquire, submit, release fence e present com log do episódio da tela preta.
