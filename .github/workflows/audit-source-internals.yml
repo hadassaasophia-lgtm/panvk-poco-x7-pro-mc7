@@ -106,6 +106,8 @@ jobs:
             src/vulkan/wsi/wsi_common.c
             src/vulkan/runtime/vk_sync.c
             src/vulkan/runtime/vk_sync.h
+            src/vulkan/runtime/vk_android.c
+            src/vulkan/runtime/vk_common.c
             src/vulkan/runtime/vk_shader.c
             src/panfrost/vulkan/panvk_queue.c
             src/panfrost/vulkan/panvk_queue.h
