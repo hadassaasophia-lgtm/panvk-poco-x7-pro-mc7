@@ -1,0 +1,157 @@
+name: Build PanVK KBASE v26.3.1 — G720 experimental
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - audit/panvk-kbase-v26.3.1
+
+permissions:
+  contents: read
+
+jobs:
+  build-g720:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      PANVK_JOBS: "2"
+      ANDROID_API: "35"
+    steps:
+      - name: Checkout project audit branch
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git curl wget unzip zip python3 python3-pip pkg-config \
+            ninja-build glslang-tools cmake build-essential binutils file \
+            libxcb1-dev libxcb-randr0-dev libxcb-dri3-dev libxcb-present-dev \
+            libxcb-shm0-dev libxcb-sync-dev libxcb-xfixes0-dev \
+            libx11-dev libx11-xcb-dev libxshmfence-dev
+
+      - name: Install LLVM 21 and Meson
+        run: |
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get update
+          sudo apt-get install -y llvm-21-dev libclang-21-dev clang-21 libclc-21-dev
+          python3 -m pip install --break-system-packages "meson>=1.4.0" mako packaging pyyaml
+
+      - name: Download Android NDK r29
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fL --retry 5 -o android-ndk-r29-linux.zip \
+            https://dl.google.com/android/repository/android-ndk-r29-linux.zip
+          unzip -q android-ndk-r29-linux.zip
+          test -x "$RUNNER_TEMP/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          echo "ANDROID_NDK_ROOT=$RUNNER_TEMP/android-ndk-r29" >> "$GITHUB_ENV"
+
+      - name: Fetch exact upstream release and verify immutable refs
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/zenithblue-oss/panvk-kbase-android.git upstream
+          git -C upstream checkout --detach panvk-kbase-v26.3.1
+          TAG_SHA="$(git -C upstream rev-parse HEAD)"
+          test "$TAG_SHA" = "3c82008657f3edd44cc5fbed4c2f80f8a29c90fc"
+          MESA_SHA="$(python3 -c "import json; print(json.load(open('upstream/sources.lock'))['mesaCommit'])")"
+          test "$MESA_SHA" = "5a07217f034b3e50d8c7c7794f97a2df1742613b"
+          python3 - <<'PY'
+          import json
+          p=json.load(open("upstream/profiles/g720-v12-csf.json"))
+          assert p["gpu"] == "Mali-G720" and p["panArch"] == 12 and p["frontend"] == "CSF"
+          print("G720 profile status:", p.get("status", "unspecified"))
+          PY
+          echo "UPSTREAM_TAG_SHA=$TAG_SHA" >> "$GITHUB_ENV"
+          echo "MESA_COMMIT=$MESA_SHA" >> "$GITHUB_ENV"
+
+      - name: Fetch pinned Mesa source
+        working-directory: upstream
+        run: ./scripts/fetch-mesa.sh
+
+      - name: Apply and verify exact G720 v12 CSF patch series
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          ./scripts/apply-patches.sh --profile g720-v12-csf --mesa work/mesa
+          SERIES="$(python3 scripts/compute-patch-series-id.py --profile g720-v12-csf)"
+          echo "PATCH_SERIES_ID=$SERIES" >> "$GITHUB_ENV"
+          echo "Patch series: $SERIES"
+          echo "Architecture-specific patch directory:"
+          if [ -d patches/csf-v12 ]; then
+            find patches/csf-v12 -maxdepth 1 -type f -name '*.patch' -print
+          else
+            echo "NOTICE: patches/csf-v12 is absent in this release tag; only common CSF patches are applied."
+          fi
+          git -C work/mesa status --short
+
+      - name: Build Android ARM64 PanVK
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          ./scripts/build-android.sh --profile g720-v12-csf --api 35 --ndk "$ANDROID_NDK_ROOT"
+          test -s dist/android-g720-v12-csf/libvulkan_panfrost.so
+          file dist/android-g720-v12-csf/libvulkan_panfrost.so
+          readelf -h dist/android-g720-v12-csf/libvulkan_panfrost.so | grep -E 'ELF64|AArch64'
+          readelf -d dist/android-g720-v12-csf/libvulkan_panfrost.so | grep NEEDED || true
+          sha256sum dist/android-g720-v12-csf/libvulkan_panfrost.so
+
+      - name: Create experimental AdrenoTools package and provenance
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          SO="dist/android-g720-v12-csf/libvulkan_panfrost.so"
+          STAGE="dist/panvk-poco-x7-pro-mc7-v26.3.1"
+          mkdir -p "$STAGE"
+          cp "$SO" "$STAGE/libvulkan_panfrost.so"
+          cp work/mesa/COPYING "$STAGE/NOTICE.txt"
+          python3 - "$STAGE/meta.json" <<'PY'
+          import json,sys
+          d={
+            "name":"PanVK KBASE v26.3.1 — Mali-G720 MC7 experimental",
+            "author":"Mesa / panvk-kbase-android integration",
+            "description":"Experimental Android ARM64 PanVK build. G720 v12 CSF profile is not yet validated on POCO X7 Pro.",
+            "driverVersion":"Mesa 26.3.0-devel (git-5a07217f; KBASE v26.3.1 patch series)",
+            "minApi":35,
+            "libraryName":"libvulkan_panfrost.so",
+            "gpu":"ARM Mali-G720 MC7",
+            "gpuId":"0xc8700010",
+            "architecture":"Mali v12 CSF",
+            "status":"experimental_unverified"
+          }
+          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\\n")
+          PY
+          (cd "$STAGE" && sha256sum libvulkan_panfrost.so > SHA256SUMS.txt)
+          python3 - "$STAGE/SOURCE.json" <<'PY'
+          import json,os,sys
+          d={
+            "upstreamRepository":"https://github.com/zenithblue-oss/panvk-kbase-android",
+            "upstreamTag":"panvk-kbase-v26.3.1",
+            "upstreamTagCommit":os.environ["UPSTREAM_TAG_SHA"],
+            "mesaCommit":os.environ["MESA_COMMIT"],
+            "patchSeriesId":os.environ["PATCH_SERIES_ID"],
+            "profile":"g720-v12-csf",
+            "deviceValidation":"not_performed"
+          }
+          with open(sys.argv[1],"w") as f: json.dump(d,f,indent=2); f.write("\\n")
+          PY
+          (cd "$STAGE" && zip -q ../panvk_poco_x7_pro_mc7_v26.3.1.adpkg.zip \
+            libvulkan_panfrost.so meta.json NOTICE.txt SHA256SUMS.txt SOURCE.json)
+          unzip -t dist/panvk_poco_x7_pro_mc7_v26.3.1.adpkg.zip
+          unzip -p dist/panvk_poco_x7_pro_mc7_v26.3.1.adpkg.zip meta.json | python3 -c \
+            'import json,sys; d=json.load(sys.stdin); assert d["libraryName"]=="libvulkan_panfrost.so" and d["status"]=="experimental_unverified"'
+          sha256sum dist/panvk_poco_x7_pro_mc7_v26.3.1.adpkg.zip
+
+      - name: Upload experimental build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: PanVK-POCO-X7-Pro-MC7-v26.3.1-EXPERIMENTAL
+          path: |
+            upstream/dist/android-g720-v12-csf/libvulkan_panfrost.so
+            upstream/dist/panvk_poco_x7_pro_mc7_v26.3.1.adpkg.zip
+            upstream/dist/panvk-poco-x7-pro-mc7-v26.3.1/meta.json
+            upstream/dist/panvk-poco-x7-pro-mc7-v26.3.1/SOURCE.json
+            upstream/dist/panvk-poco-x7-pro-mc7-v26.3.1/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
