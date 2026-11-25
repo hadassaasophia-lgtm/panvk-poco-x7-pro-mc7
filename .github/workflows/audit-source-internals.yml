@@ -119,6 +119,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PanVK-Source-Internals-Audit
-          path: audit-output/source-internals.txt
+          path: audit-output/
           if-no-files-found: error
           retention-days: 14
