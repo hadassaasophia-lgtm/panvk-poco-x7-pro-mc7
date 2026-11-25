@@ -105,3 +105,14 @@ https://github.com/wonderkast02/panvk-g720-kbase-csf/blob/d9cbb91e5df720f0a62c4b
 
 CI disparado pelo push: https://github.com/hadassaasophia-lgtm/panvk-poco-x7-pro-mc7/actions/runs/45602486853
 Estado no último acompanhamento: execução em andamento; nenhum binário validado ou artefato disponível ainda.
+
+
+## Primeiro bloqueio de compilação e correção do CI
+
+A primeira execução que chegou à configuração Meson falhou antes de compilar o driver: faltava a dependência de desenvolvimento **libdrm** no ambiente host (`Dependency "libdrm" not found`). A aplicação da série upstream e do patch G720 havia passado nessa execução.
+
+Correção aplicada ao workflow:
+- adiciona `libdrm-dev` às dependências do runner Ubuntu;
+- adiciona um grupo de concorrência por branch com cancelamento de builds antigos, evitando gastar runners em compilações redundantes geradas por cada commit de ajuste.
+
+A correção do ambiente não altera o código do driver. A próxima execução precisa confirmar que a configuração Meson passa e revelar eventuais dependências seguintes.
